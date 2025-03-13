@@ -1,0 +1,14 @@
+dependencies {
+    implementation project(':common')
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    runtimeOnly 'org.postgresql:postgresql'
+    implementation 'org.springframework:spring-tx'
+
+
+
+    // 추가 의존성 필요 시
+}
+
+bootJar {
+    archiveFileName = "product-service.jar"
+}

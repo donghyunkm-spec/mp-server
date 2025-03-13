@@ -1,0 +1,54 @@
+server:
+  port: ${SERVER_PORT:8083}
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: kos-adapter-service
+  security:
+    user:
+      name: ${SECURITY_USER:admin}
+      password: ${SECURITY_PASSWORD:admin}
+
+# KOS Mock service configuration (for development)
+kos-mock:
+  base-url: ${KOS_MOCK_BASE_URL:http://localhost:8084}
+
+# KOS Real service configuration (for production)
+kos-real:
+  base-url: ${KOS_REAL_BASE_URL:https://kos.kt.com/api}
+  use-real: ${USE_REAL_KOS:false}
+
+# Circuit Breaker configuration
+resilience4j:
+  circuitbreaker:
+    instances:
+      kosRequest:
+        registerHealthIndicator: true
+        slidingWindowSize: ${CIRCUIT_BREAKER_SLIDING_WINDOW_SIZE:10}
+        minimumNumberOfCalls: ${CIRCUIT_BREAKER_MINIMUM_CALLS:5}
+        failureRateThreshold: ${CIRCUIT_BREAKER_FAILURE_RATE:50}
+        waitDurationInOpenState: ${CIRCUIT_BREAKER_WAIT_DURATION:30000}
+        permittedNumberOfCallsInHalfOpenState: ${CIRCUIT_BREAKER_PERMITTED_CALLS_HALF_OPEN:3}
+
+# Stamp configuration
+stamp:
+  enabled: ${STAMP_ENABLED:true}
+  header-name: ${STAMP_HEADER_NAME:X-MVNO-Stamp}
+  default-stamp: ${STAMP_DEFAULT:default-stamp}
+
+# Logging
+logging:
+  level:
+    com.ktds.mvne: ${LOG_LEVEL:DEBUG}
+    org.springframework: INFO
+
+# Swagger
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+  api-docs:
+    path: /api-docs
+

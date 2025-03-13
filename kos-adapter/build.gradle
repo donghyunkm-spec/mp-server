@@ -1,0 +1,12 @@
+dependencies {
+    implementation project(':common')
+    
+    // XML 처리 관련 의존성
+    implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-xml'
+    
+    // 추가 의존성 필요 시
+}
+
+bootJar {
+    archiveFileName = "kos-adapter-service.jar"
+}

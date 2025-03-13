@@ -1,0 +1,44 @@
+project(':common') {
+    bootJar {
+        enabled = false
+    }
+    jar {
+        enabled = true
+    }
+}
+
+project(':billing') {
+    dependencies {
+        implementation project(':common')
+    }
+    bootJar {
+        archiveFileName = "billing-service.jar"
+    }
+}
+
+project(':product') {
+    dependencies {
+        implementation project(':common')
+    }
+    bootJar {
+        archiveFileName = "product-service.jar"
+    }
+}
+
+project(':kos-adapter') {
+    dependencies {
+        implementation project(':common')
+    }
+    bootJar {
+        archiveFileName = "kos-adapter-service.jar"
+    }
+}
+
+project(':kos-mock') {
+    dependencies {
+        implementation project(':common')
+    }
+    bootJar {
+        archiveFileName = "kos-mock-service.jar"
+    }
+}

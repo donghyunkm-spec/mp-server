@@ -1,0 +1,40 @@
+// common/build.gradle
+plugins {
+    id 'java-library'
+    id 'org.springframework.boot'  // Spring Boot 플러그인 추가
+}
+
+dependencies {
+    // Spring Boot 기본 의존성
+    api 'org.springframework.boot:spring-boot-starter-web'
+    api 'org.springframework.boot:spring-boot-starter-validation'
+    api 'org.springframework.boot:spring-boot-starter-security'
+
+    // Spring AOP
+    api 'org.springframework.boot:spring-boot-starter-aop'  // AspectJ 포함
+
+    // Spring Cloud CircuitBreaker
+    api 'org.springframework.cloud:spring-cloud-starter-circuitbreaker-resilience4j'
+
+    // WebClient
+    api 'org.springframework.boot:spring-boot-starter-webflux'  // WebClient 포함
+
+    // Resilience4j
+    api 'io.github.resilience4j:resilience4j-spring-boot3'
+    api 'io.github.resilience4j:resilience4j-circuitbreaker'
+
+    // Micrometer (for metrics)
+    api 'io.micrometer:micrometer-core'
+
+    // Lombok
+    compileOnly 'org.projectlombok:lombok:1.18.30'
+    annotationProcessor 'org.projectlombok:lombok:1.18.30'
+}
+
+bootJar {
+    enabled = false
+}
+
+jar {
+    enabled = true
+}

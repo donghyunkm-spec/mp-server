@@ -1,0 +1,71 @@
+server:
+  port: ${SERVER_PORT:8082}
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: product-service
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:product_db}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    show-sql: ${JPA_SHOW_SQL:true}
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+  security:
+    user:
+      name: ${SECURITY_USER:admin}
+      password: ${SECURITY_PASSWORD:admin}
+
+# Azure Service Bus configuration
+azure:
+  servicebus:
+    connection-string: ${AZURE_SERVICEBUS_CONNECTION_STRING:}
+    topic:
+      product-change: ${AZURE_SERVICEBUS_TOPIC_PRODUCT_CHANGE:product-change-topic}
+    subscription:
+      product-change: ${AZURE_SERVICEBUS_SUBSCRIPTION_PRODUCT_CHANGE:product-service-subscription}
+
+# KOS Adapter service configuration
+kos-adapter:
+  base-url: ${KOS_ADAPTER_BASE_URL:http://localhost:8083}
+
+# Circuit Breaker configuration
+resilience4j:
+  circuitbreaker:
+    instances:
+      productChange:
+        registerHealthIndicator: true
+        slidingWindowSize: ${CIRCUIT_BREAKER_SLIDING_WINDOW_SIZE:10}
+        minimumNumberOfCalls: ${CIRCUIT_BREAKER_MINIMUM_CALLS:5}
+        failureRateThreshold: ${CIRCUIT_BREAKER_FAILURE_RATE:50}
+        waitDurationInOpenState: ${CIRCUIT_BREAKER_WAIT_DURATION:30000}
+        permittedNumberOfCallsInHalfOpenState: ${CIRCUIT_BREAKER_PERMITTED_CALLS_HALF_OPEN:3}
+
+# Worker configuration
+worker:
+  product-change:
+    core-pool-size: ${WORKER_CORE_POOL_SIZE:2}
+    max-pool-size: ${WORKER_MAX_POOL_SIZE:5}
+    queue-capacity: ${WORKER_QUEUE_CAPACITY:10}
+    thread-name-prefix: product-change-worker-
+
+# Logging
+logging:
+  level:
+    com.ktds.mvne: ${LOG_LEVEL:DEBUG}
+    org.springframework: INFO
+
+# Swagger
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+  api-docs:
+    path: /api-docs

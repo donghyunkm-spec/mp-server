@@ -1,0 +1,81 @@
+// build.gradle (root)
+plugins {
+    id 'org.springframework.boot' version '3.2.5' apply false
+    id 'io.spring.dependency-management' version '1.1.4' apply false
+    id 'java'
+}
+
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'org.springframework.boot'
+    apply plugin: 'io.spring.dependency-management'
+
+    group = 'com.ktds.mvne'
+    version = '0.0.1-SNAPSHOT'
+    sourceCompatibility = '21'
+
+    repositories {
+        mavenCentral()
+    }
+
+    dependencyManagement {
+        imports {
+            mavenBom "org.springframework.cloud:spring-cloud-dependencies:2023.0.0"
+        }
+    }
+
+    dependencies {
+        // 공통 의존성
+        implementation 'org.springframework.boot:spring-boot-starter'
+        implementation 'org.springframework.boot:spring-boot-starter-web'
+
+        // Lombok
+        compileOnly 'org.projectlombok:lombok:1.18.30'
+        annotationProcessor 'org.projectlombok:lombok:1.18.30'
+
+        // Test
+        testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
+        // Swagger/OpenAPI
+        implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.4.0'
+
+        // Spring Boot Actuator 추가 (Micrometer 포함)
+        implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+        // Prometheus 메트릭 지원 (선택적)
+        implementation 'io.micrometer:micrometer-registry-prometheus'
+    }
+
+    test {
+        useJUnitPlatform()
+    }
+}
+
+project(':common') {
+    bootJar { enabled = false }
+    jar { enabled = true }
+}
+
+project(':billing') {
+    dependencies {
+        implementation project(':common')
+    }
+}
+
+project(':product') {
+    dependencies {
+        implementation project(':common')
+    }
+}
+
+project(':kos-adapter') {
+    dependencies {
+        implementation project(':common')
+    }
+}
+
+project(':kos-mock') {
+    dependencies {
+        implementation project(':common')
+    }
+}
