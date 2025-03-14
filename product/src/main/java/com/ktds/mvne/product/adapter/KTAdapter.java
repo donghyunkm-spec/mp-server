@@ -5,15 +5,15 @@ import com.ktds.mvne.product.dto.ProductChangeResponse;
 import com.ktds.mvne.product.dto.ProductInfoDTO;
 
 /**
- * KT 영업시스템과의 통신을 담당하는 어댑터 인터페이스입니다.
+ * KT 영업시스템과의 연동을 위한 어댑터 인터페이스입니다.
  */
 public interface KTAdapter {
 
     /**
      * 고객 정보를 조회합니다.
      *
-     * @param phoneNumber 회선 번호
-     * @return 고객 정보
+     * @param phoneNumber 전화번호
+     * @return 고객 정보 응답
      */
     CustomerInfoResponseDTO getCustomerInfo(String phoneNumber);
 
@@ -28,10 +28,10 @@ public interface KTAdapter {
     /**
      * 상품을 변경합니다.
      *
-     * @param phoneNumber 회선 번호
-     * @param productCode 변경하려는 상품 코드
+     * @param phoneNumber 전화번호
+     * @param productCode 변경할 상품 코드
      * @param changeReason 변경 사유
-     * @return 상품 변경 결과
+     * @return 상품 변경 응답
      */
     ProductChangeResponse changeProduct(String phoneNumber, String productCode, String changeReason);
 }

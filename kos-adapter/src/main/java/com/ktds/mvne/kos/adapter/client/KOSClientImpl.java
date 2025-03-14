@@ -6,6 +6,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.util.UriComponentsBuilder;
+
+import java.net.URI;
+import java.util.Optional;
 
 /**
  * KT 영업시스템 클라이언트 구현체
@@ -28,11 +32,8 @@ public class KOSClientImpl implements KOSClient {
     @Override
     public String sendRequest(String requestXml, String endpoint) {
         String baseUrl = useRealKos ? realBaseUrl : mockBaseUrl;
-        String fullEndpoint = "/mock/billings/" + endpoint;
-
-        if (useRealKos) {
-            fullEndpoint = "/real/billings/" + endpoint;
-        }
+        String contextPath = useRealKos ? "/real/billings/" : "/mock/billings/";
+        String fullEndpoint = contextPath + endpoint;
 
         log.debug("Sending request to KOS: {}{}", baseUrl, fullEndpoint);
 
@@ -45,39 +46,39 @@ public class KOSClientImpl implements KOSClient {
 
             // 엔드포인트에 따라 다른 HTTP 메소드 사용
             if (endpoint.equals("billing-status")) {
+                URI uri = UriComponentsBuilder.fromHttpUrl(ensureHttpUrl(baseUrl) + contextPath + "billing-status")
+                        .queryParam("phoneNumber", phoneNumber)
+                        .build()
+                        .toUri();
+
                 response = webClient.get()
-                        .uri(uriBuilder -> uriBuilder
-                                .scheme("http")
-                                .host(baseUrl.replace("http://", "").replace("https://", ""))
-                                .path("/mock/billings/billing-status")
-                                .queryParam("phoneNumber", phoneNumber)
-                                .build())
+                        .uri(uri)
                         .retrieve()
                         .bodyToMono(String.class)
                         .block();
             } else if (endpoint.equals("info")) {
-                WebClient.RequestHeadersUriSpec<?> requestSpec = webClient.get();
-                response = requestSpec
-                        .uri(uriBuilder -> {
-                            uriBuilder
-                                    .scheme("http")
-                                    .host(baseUrl.replace("http://", "").replace("https://", ""))
-                                    .path("/mock/billings/info")
-                                    .queryParam("phoneNumber", phoneNumber);
+                UriComponentsBuilder uriBuilder = UriComponentsBuilder.fromHttpUrl(ensureHttpUrl(baseUrl) + contextPath + "info")
+                        .queryParam("phoneNumber", phoneNumber);
 
-                            if (billingMonth != null && !billingMonth.isEmpty()) {
-                                uriBuilder.queryParam("billingMonth", billingMonth);
-                            }
+                if (billingMonth != null && !billingMonth.isEmpty()) {
+                    uriBuilder.queryParam("billingMonth", billingMonth);
+                }
 
-                            return uriBuilder.build();
-                        })
+                URI uri = uriBuilder.build().toUri();
+
+                response = webClient.get()
+                        .uri(uri)
                         .retrieve()
                         .bodyToMono(String.class)
                         .block();
             } else {
                 // 다른 엔드포인트는 POST로 처리 (change 등)
+                URI uri = UriComponentsBuilder.fromHttpUrl(ensureHttpUrl(baseUrl) + fullEndpoint)
+                        .build()
+                        .toUri();
+
                 response = webClient.post()
-                        .uri(baseUrl + fullEndpoint)
+                        .uri(uri)
                         .contentType(MediaType.APPLICATION_XML)
                         .bodyValue(requestXml)
                         .retrieve()
@@ -93,10 +94,30 @@ public class KOSClientImpl implements KOSClient {
         }
     }
 
+    /**
+     * URL이 http:// 또는 https://로 시작하는지 확인하고,
+     * 그렇지 않으면 http://를 앞에 추가합니다.
+     *
+     * @param url 확인할 URL
+     * @return 프로토콜을 포함한 URL
+     */
+    private String ensureHttpUrl(String url) {
+        if (url == null || url.isEmpty()) {
+            // 기본값 설정
+            return "http://localhost:8084";
+        }
+
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            return "http://" + url;
+        }
+
+        return url;
+    }
+
     // XML에서 전화번호 추출
     private String extractPhoneNumber(String requestXml) {
         // 간단한 구현 - 실제로는 XML 파싱이 필요할 수 있음
-        if (requestXml.contains("<phoneNumber>")) {
+        if (requestXml != null && requestXml.contains("<phoneNumber>")) {
             int start = requestXml.indexOf("<phoneNumber>") + "<phoneNumber>".length();
             int end = requestXml.indexOf("</phoneNumber>");
             return requestXml.substring(start, end);
@@ -107,7 +128,7 @@ public class KOSClientImpl implements KOSClient {
     // XML에서 청구 년월 추출
     private String extractBillingMonth(String requestXml) {
         // 간단한 구현 - 실제로는 XML 파싱이 필요할 수 있음
-        if (requestXml.contains("<billingMonth>")) {
+        if (requestXml != null && requestXml.contains("<billingMonth>")) {
             int start = requestXml.indexOf("<billingMonth>") + "<billingMonth>".length();
             int end = requestXml.indexOf("</billingMonth>");
             return requestXml.substring(start, end);

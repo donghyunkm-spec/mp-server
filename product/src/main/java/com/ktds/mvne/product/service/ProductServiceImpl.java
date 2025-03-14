@@ -2,6 +2,7 @@ package com.ktds.mvne.product.service;
 
 import com.ktds.mvne.common.exception.BizException;
 import com.ktds.mvne.common.exception.ErrorCode;
+import com.ktds.mvne.common.exception.ExternalSystemException;
 import com.ktds.mvne.common.util.ValidationUtil;
 import com.ktds.mvne.product.adapter.KTAdapter;
 import com.ktds.mvne.product.dto.CustomerInfoResponseDTO;
@@ -13,8 +14,10 @@ import com.ktds.mvne.product.domain.ProductChangeResult;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -23,13 +26,24 @@ import java.util.UUID;
  * 상품 정보 및 변경 관련 서비스 구현체입니다.
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class ProductServiceImpl implements ProductService {
 
     private final KTAdapter ktAdapter;
     private final CustomerService customerService;
     private final ProductChangeResultRepository resultRepository;
+    private final RestTemplate restTemplate;
+
+    @Value("${kos.adapter.base-url}")
+    private String kosAdapterBaseUrl;
+
+    public ProductServiceImpl(KTAdapter ktAdapter, CustomerService customerService,
+                              ProductChangeResultRepository resultRepository, RestTemplate restTemplate) {
+        this.ktAdapter = ktAdapter;
+        this.customerService = customerService;
+        this.resultRepository = resultRepository;
+        this.restTemplate = restTemplate;
+    }
 
     /**
      * 상품 변경 가능 여부를 확인합니다.
@@ -84,6 +98,55 @@ public class ProductServiceImpl implements ProductService {
                 .currentProduct(customerInfo.getCurrentProduct())
                 .targetProduct(targetProduct)
                 .build();
+    }
+
+    /**
+     * 상품 정보를 조회합니다.
+     *
+     * @param productCode 상품 코드
+     * @return 상품 정보
+     */
+
+    public ProductInfoDTO getProductInfo(String productCode) {
+        log.info("KT 어댑터 - 상품 정보 조회 요청 - 상품 코드: {}", productCode);
+
+        try {
+            String url = kosAdapterBaseUrl + "/api/kos/products/product-info?productCode=" + productCode;
+            log.debug("KOS 어댑터 호출 URL: {}", url);
+
+            // 실제 KOS 어댑터 호출 부분
+            ProductInfoDTO response = restTemplate.getForObject(url, ProductInfoDTO.class);
+
+            log.info("KT 어댑터 - 상품 정보 조회 응답: {}", response);
+
+            // null 체크 및 기본값 설정
+            if (response == null) {
+                log.warn("KT 어댑터 - 응답이 null입니다");
+                return createDefaultProductInfo(productCode);
+            }
+
+            // 상품 코드 설정
+            if (response.getProductCode() == null || response.getProductCode().isEmpty()) {
+                response.setProductCode(productCode);
+            }
+
+            return response;
+
+        } catch (Exception e) {
+            log.error("KT 어댑터 - 상품 정보 조회 실패: {}", e.getMessage(), e);
+            throw new ExternalSystemException("KT 시스템 연동 중 오류가 발생했습니다: " + e.getMessage(), 500, "KOS");
+        }
+    }
+
+    /**
+     * 기본 상품 정보 객체를 생성합니다.
+     */
+    private ProductInfoDTO createDefaultProductInfo(String productCode) {
+        ProductInfoDTO product = new ProductInfoDTO();
+        product.setProductCode(productCode);
+        product.setProductName("Unknown Product");
+        product.setFee(0);
+        return product;
     }
 
     /**

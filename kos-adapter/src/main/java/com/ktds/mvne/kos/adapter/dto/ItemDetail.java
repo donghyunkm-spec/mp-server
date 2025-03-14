@@ -1,27 +1,38 @@
 package com.ktds.mvne.kos.adapter.dto;
 
-import io.swagger.v3.oas.annotations.media.Schema;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/**
- * 요금 항목 상세 정보 DTO입니다.
- */
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "요금 항목 상세 정보")
 public class ItemDetail {
-
-    @Schema(description = "항목 코드", example = "BASE_FEE")
     private String itemCode;
-    
-    @Schema(description = "항목 이름", example = "기본 요금")
     private String itemName;
-    
-    @Schema(description = "금액", example = "30000")
     private Integer amount;
+
+    // String 값을 처리할 수 있는 생성자 추가
+    @JsonCreator
+    public static ItemDetail fromString(String value) {
+        ItemDetail itemDetail = new ItemDetail();
+        // value가 "BASE_FEE"와 같은 코드값이라면 이를 적절히 처리
+        itemDetail.setItemCode(value);
+        itemDetail.setItemName(getItemNameFromCode(value));
+        itemDetail.setAmount(0); // 기본값 설정 또는 코드에 따른 기본 금액 설정
+        return itemDetail;
+    }
+
+    // 코드에 따른 이름 매핑 (실제 비즈니스 로직에 맞게 구현)
+    private static String getItemNameFromCode(String code) {
+        switch (code) {
+            case "BASE_FEE":
+                return "기본 요금";
+            // 다른 코드에 대한 처리 추가
+            default:
+                return code;
+        }
+    }
 }
