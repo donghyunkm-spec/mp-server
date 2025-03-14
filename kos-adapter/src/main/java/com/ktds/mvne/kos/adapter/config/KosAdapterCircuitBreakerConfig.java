@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
 import java.time.Duration;
 
@@ -38,6 +39,7 @@ public class KosAdapterCircuitBreakerConfig {
      * @return CircuitBreakerRegistry 인스턴스
      */
     @Bean("kosAdapterCircuitBreakerRegistry")
+    @Primary
     public CircuitBreakerRegistry circuitBreakerRegistry() {
         io.github.resilience4j.circuitbreaker.CircuitBreakerConfig kosConfig = 
                 io.github.resilience4j.circuitbreaker.CircuitBreakerConfig.custom()
@@ -59,6 +61,7 @@ public class KosAdapterCircuitBreakerConfig {
      * @return CircuitBreaker 인스턴스
      */
     @Bean
+    @Primary
     public CircuitBreaker billingCircuitBreaker(CircuitBreakerRegistry registry) {
         return registry.circuitBreaker("billing-kosRequest");
     }

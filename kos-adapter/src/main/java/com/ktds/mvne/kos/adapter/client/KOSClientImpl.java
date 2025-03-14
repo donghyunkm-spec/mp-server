@@ -1,83 +1,117 @@
 package com.ktds.mvne.kos.adapter.client;
 
-import com.ktds.mvne.common.exception.ExternalSystemException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 /**
- * KT 영업시스템과의 통신을 담당하는 클라이언트 구현체입니다.
+ * KT 영업시스템 클라이언트 구현체
  */
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class KOSClientImpl implements KOSClient {
-
     private final WebClient webClient;
 
     @Value("${kos-mock.base-url}")
-    private String kosMockBaseUrl;
+    private String mockBaseUrl;
 
     @Value("${kos-real.base-url}")
-    private String kosRealBaseUrl;
+    private String realBaseUrl;
 
     @Value("${kos-real.use-real:false}")
     private boolean useRealKos;
 
-    /**
-     * KT 영업시스템에 SOAP 요청을 보내고 응답을 받습니다.
-     *
-     * @param requestXml SOAP 요청 XML
-     * @param endpoint 호출할 엔드포인트
-     * @return SOAP 응답 XML
-     */
     @Override
     public String sendRequest(String requestXml, String endpoint) {
-        String baseUrl = getBaseUrl();
-        String url = baseUrl + "/" + endpoint;
-        
-        log.debug("Sending request to KOS: {}", url);
-        log.trace("Request XML: {}", requestXml);
-        
+        String baseUrl = useRealKos ? realBaseUrl : mockBaseUrl;
+        String fullEndpoint = "/mock/billings/" + endpoint;
+
+        if (useRealKos) {
+            fullEndpoint = "/real/billings/" + endpoint;
+        }
+
+        log.debug("Sending request to KOS: {}{}", baseUrl, fullEndpoint);
+
         try {
-            String response = webClient.post()
-                    .uri(url)
-                    .contentType(MediaType.TEXT_XML)
-                    .bodyValue(requestXml)
-                    .retrieve()
-                    .bodyToMono(String.class)
-                    .block();
-            
-            log.trace("Response XML: {}", response);
+            // XML 요청을 쿼리 파라미터에서 추출할 주요 정보로 변환
+            String phoneNumber = extractPhoneNumber(requestXml);
+            String billingMonth = extractBillingMonth(requestXml);
+
+            String response;
+
+            // 엔드포인트에 따라 다른 HTTP 메소드 사용
+            if (endpoint.equals("billing-status")) {
+                response = webClient.get()
+                        .uri(uriBuilder -> uriBuilder
+                                .scheme("http")
+                                .host(baseUrl.replace("http://", "").replace("https://", ""))
+                                .path("/mock/billings/billing-status")
+                                .queryParam("phoneNumber", phoneNumber)
+                                .build())
+                        .retrieve()
+                        .bodyToMono(String.class)
+                        .block();
+            } else if (endpoint.equals("info")) {
+                WebClient.RequestHeadersUriSpec<?> requestSpec = webClient.get();
+                response = requestSpec
+                        .uri(uriBuilder -> {
+                            uriBuilder
+                                    .scheme("http")
+                                    .host(baseUrl.replace("http://", "").replace("https://", ""))
+                                    .path("/mock/billings/info")
+                                    .queryParam("phoneNumber", phoneNumber);
+
+                            if (billingMonth != null && !billingMonth.isEmpty()) {
+                                uriBuilder.queryParam("billingMonth", billingMonth);
+                            }
+
+                            return uriBuilder.build();
+                        })
+                        .retrieve()
+                        .bodyToMono(String.class)
+                        .block();
+            } else {
+                // 다른 엔드포인트는 POST로 처리 (change 등)
+                response = webClient.post()
+                        .uri(baseUrl + fullEndpoint)
+                        .contentType(MediaType.APPLICATION_XML)
+                        .bodyValue(requestXml)
+                        .retrieve()
+                        .bodyToMono(String.class)
+                        .block();
+            }
+
+            log.debug("Received response from KOS: length={}", response != null ? response.length() : 0);
             return response;
-        } catch (WebClientResponseException e) {
-            log.error("KOS request failed with status {}: {}", e.getStatusCode(), e.getResponseBodyAsString(), e);
-            throw new ExternalSystemException("KT 영업시스템 요청 실패: " + e.getMessage(), 
-                    e.getStatusCode().value(), "KOS");
         } catch (Exception e) {
-            log.error("KOS request failed: {}", e.getMessage(), e);
-            throw new ExternalSystemException("KT 영업시스템 요청 실패: " + e.getMessage(), 
-                    HttpStatus.INTERNAL_SERVER_ERROR.value(), "KOS");
+            log.error("Error sending request to KOS: {}", e.getMessage(), e);
+            throw new RuntimeException("KT 영업시스템 요청 실패: " + e.getMessage(), e);
         }
     }
 
-    /**
-     * 현재 설정에 따라 사용할 기본 URL을 결정합니다.
-     *
-     * @return 사용할 기본 URL
-     */
-    private String getBaseUrl() {
-        if (useRealKos) {
-            log.debug("Using real KOS system");
-            return kosRealBaseUrl;
-        } else {
-            log.debug("Using mock KOS system");
-            return kosMockBaseUrl;
+    // XML에서 전화번호 추출
+    private String extractPhoneNumber(String requestXml) {
+        // 간단한 구현 - 실제로는 XML 파싱이 필요할 수 있음
+        if (requestXml.contains("<phoneNumber>")) {
+            int start = requestXml.indexOf("<phoneNumber>") + "<phoneNumber>".length();
+            int end = requestXml.indexOf("</phoneNumber>");
+            return requestXml.substring(start, end);
         }
+        return "01012345678"; // 기본값 (실제 구현 시 제거)
+    }
+
+    // XML에서 청구 년월 추출
+    private String extractBillingMonth(String requestXml) {
+        // 간단한 구현 - 실제로는 XML 파싱이 필요할 수 있음
+        if (requestXml.contains("<billingMonth>")) {
+            int start = requestXml.indexOf("<billingMonth>") + "<billingMonth>".length();
+            int end = requestXml.indexOf("</billingMonth>");
+            return requestXml.substring(start, end);
+        }
+        return null;
     }
 }

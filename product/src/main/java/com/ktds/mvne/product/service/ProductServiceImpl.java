@@ -175,11 +175,27 @@ public class ProductServiceImpl implements ProductService {
      * @param phoneNumber 검사할 전화번호
      * @throws BizException 유효하지 않은 전화번호인 경우
      */
+
+    /*
     private void validatePhoneNumber(String phoneNumber) {
         if (!ValidationUtil.validatePhoneNumber(phoneNumber)) {
             throw new BizException(ErrorCode.BAD_REQUEST, "Invalid phone number format");
         }
     }
+     */
+
+    // product-service/src/main/java/com/ktds/mvne/product/service/ProductServiceImpl.java
+    // validatePhoneNumber 메소드 수정
+
+    private boolean validatePhoneNumber(String phoneNumber) {
+        // ValidationUtil 클래스 대신 직접 구현
+        if (phoneNumber == null || phoneNumber.isEmpty()) {
+            return false;
+        }
+        return phoneNumber.matches("^01(?:0|1|[6-9])[0-9]{7,8}$");
+    }
+
+
 
     /**
      * 상품 코드의 유효성을 검사합니다.
@@ -192,5 +208,9 @@ public class ProductServiceImpl implements ProductService {
             throw new BizException(ErrorCode.BAD_REQUEST, "Invalid product code format");
         }
     }
+
+
+
+
 }
 

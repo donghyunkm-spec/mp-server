@@ -44,7 +44,7 @@ public class KTAdapterImpl implements KTAdapter {
                     .block();
         } catch (Exception e) {
             log.error("Error checking billing status for {}: {}", phoneNumber, e.getMessage(), e);
-            throw new ExternalSystemException("KT 영업시스템 연결 오류: " + e.getMessage(), 
+            throw new ExternalSystemException("KT 영업시스템 연결 오류 checkBillingStatus: " + e.getMessage(),
                     HttpStatus.SERVICE_UNAVAILABLE.value(), "KOS");
         }
     }
@@ -69,7 +69,7 @@ public class KTAdapterImpl implements KTAdapter {
                     .block();
         } catch (Exception e) {
             log.error("Error getting billing info for {}, {}: {}", phoneNumber, billingMonth, e.getMessage(), e);
-            throw new ExternalSystemException("KT 영업시스템 연결 오류: " + e.getMessage(), 
+            throw new ExternalSystemException("KT 영업시스템 연결 오류 getBillingInfo: " + e.getMessage(),
                     HttpStatus.SERVICE_UNAVAILABLE.value(), "KOS");
         }
     }
@@ -92,7 +92,7 @@ public class KTAdapterImpl implements KTAdapter {
                     .block();
         } catch (Exception e) {
             log.error("Error getting customer info for {}: {}", phoneNumber, e.getMessage(), e);
-            throw new ExternalSystemException("KT 영업시스템 연결 오류: " + e.getMessage(), 
+            throw new ExternalSystemException("KT 영업시스템 연결 오류 getCustomerInfo: " + e.getMessage(),
                     HttpStatus.SERVICE_UNAVAILABLE.value(), "KOS");
         }
     }
@@ -115,7 +115,7 @@ public class KTAdapterImpl implements KTAdapter {
                 return Mono.error(new BizException(ErrorCode.BAD_REQUEST, 
                         "요청 오류: " + ex.getResponseBodyAsString()));
             } else {
-                return Mono.error(new ExternalSystemException("KT 영업시스템 오류: " + ex.getResponseBodyAsString(), 
+                return Mono.error(new ExternalSystemException("KT 영업시스템 오류 handleError: " + ex.getResponseBodyAsString(),
                         status.value(), "KOS"));
             }
         }
