@@ -40,6 +40,13 @@ public class BillingAdapterController {
             @RequestParam("phoneNumber") String phoneNumber) {
         log.debug("checkBillingStatus request for phoneNumber: {}", phoneNumber);
         BillingStatusResponse response = billingAdapterService.checkBillingStatus(phoneNumber);
+
+        // phoneNumber가 null인 경우 요청 값으로 설정
+        if (response.getPhoneNumber() == null || response.getPhoneNumber().isEmpty()) {
+            log.warn("응답의 phoneNumber가 null입니다. 요청값으로 설정합니다: {}", phoneNumber);
+            response.setPhoneNumber(phoneNumber);
+        }
+
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -59,6 +66,19 @@ public class BillingAdapterController {
             @RequestParam("billingMonth") String billingMonth) {
         log.debug("getBillingInfo request for phoneNumber: {}, billingMonth: {}", phoneNumber, billingMonth);
         BillingInfoResponse response = billingAdapterService.getBillingInfo(phoneNumber, billingMonth);
+
+        // phoneNumber가 null인 경우 요청 값으로 설정
+        if (response.getPhoneNumber() == null || response.getPhoneNumber().isEmpty()) {
+            log.warn("응답의 phoneNumber가 null입니다. 요청값으로 설정합니다: {}", phoneNumber);
+            response.setPhoneNumber(phoneNumber);
+        }
+
+        // billingMonth가 null인 경우 요청 값으로 설정
+        if (response.getBillingMonth() == null || response.getBillingMonth().isEmpty()) {
+            log.warn("응답의 billingMonth가 null입니다. 요청값으로 설정합니다: {}", billingMonth);
+            response.setBillingMonth(billingMonth);
+        }
+
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

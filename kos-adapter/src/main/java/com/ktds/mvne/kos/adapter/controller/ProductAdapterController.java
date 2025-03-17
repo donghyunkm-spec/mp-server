@@ -38,6 +38,13 @@ public class ProductAdapterController {
             @PathVariable("phoneNumber") String phoneNumber) {
         log.debug("getCustomerInfo request for phoneNumber: {}", phoneNumber);
         CustomerInfoResponse response = productAdapterService.getCustomerInfo(phoneNumber);
+
+        // phoneNumber가 null인 경우 요청 값으로 설정
+        if (response.getPhoneNumber() == null || response.getPhoneNumber().isEmpty()) {
+            log.warn("응답의 phoneNumber가 null입니다. 요청값으로 설정합니다: {}", phoneNumber);
+            response.setPhoneNumber(phoneNumber);
+        }
+
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -54,6 +61,13 @@ public class ProductAdapterController {
             @PathVariable("productCode") String productCode) {
         log.debug("getProductInfo request for productCode: {}", productCode);
         ProductDetail response = productAdapterService.getProductInfo(productCode);
+
+        // productCode가 null인 경우 요청 값으로 설정
+        if (response.getProductCode() == null || response.getProductCode().isEmpty()) {
+            log.warn("응답의 productCode가 null입니다. 요청값으로 설정합니다: {}", productCode);
+            response.setProductCode(productCode);
+        }
+
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 

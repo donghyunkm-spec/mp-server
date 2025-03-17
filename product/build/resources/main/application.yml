@@ -36,6 +36,11 @@ azure:
 kos-adapter:
   base-url: ${KOS_ADAPTER_BASE_URL:http://localhost:8083}
 
+# KOS 서비스 설정 (추가)
+kos:
+  adapter:
+    base-url: ${KOS_ADAPTER_BASE_URL:http://localhost:8083}
+
 # Circuit Breaker configuration
 resilience4j:
   circuitbreaker:

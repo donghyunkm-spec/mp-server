@@ -25,7 +25,7 @@ public class MockDataGenerator {
 
     // 상품 정보 맵
     private static final Map<String, ProductInfo> PRODUCT_MAP = new HashMap<>();
-    
+
     static {
         PRODUCT_MAP.put("5GX_BASIC", new ProductInfo("5GX_BASIC", "5G 베이직", 45000));
         PRODUCT_MAP.put("5GX_STANDARD", new ProductInfo("5GX_STANDARD", "5G 스탠다드", 55000));
@@ -46,13 +46,13 @@ public class MockDataGenerator {
         // 현재 월은 청구 데이터가 생성된 것으로 가정
         YearMonth currentMonth = YearMonth.now();
         String yearMonth = currentMonth.format(DateTimeFormatter.ofPattern("yyyyMM"));
-        
+
         String responseBody = "<BillingStatusResponse>" +
                 "<phoneNumber>" + phoneNumber + "</phoneNumber>" +
                 "<currentBillingMonth>" + yearMonth + "</currentBillingMonth>" +
                 "<billingGenerated>true</billingGenerated>" +
                 "</BillingStatusResponse>";
-        
+
         return wrapInSoapEnvelope(responseBody);
     }
 
@@ -73,7 +73,7 @@ public class MockDataGenerator {
         int discount1 = 5000;
         int discount2 = 3000;
         int totalFee = baseFee + dataFee + serviceFee1 + serviceFee2 + deviceFee - discount1 - discount2;
-        
+
         String responseBody = "<BillingInfoResponse>" +
                 "<phoneNumber>" + phoneNumber + "</phoneNumber>" +
                 "<billingMonth>" + billingMonth + "</billingMonth>" +
@@ -115,7 +115,7 @@ public class MockDataGenerator {
                 "<remainingMonths>18</remainingMonths>" +
                 "</deviceInstallment>" +
                 "</BillingInfoResponse>";
-        
+
         return wrapInSoapEnvelope(responseBody);
     }
 
@@ -130,7 +130,7 @@ public class MockDataGenerator {
         String productCode = "5GX_STANDARD";
         String productName = "5G 스탠다드";
         int fee = 55000;
-        
+
         String responseBody = "<CustomerInfoResponse>" +
                 "<phoneNumber>" + phoneNumber + "</phoneNumber>" +
                 "<status>사용중</status>" +
@@ -140,7 +140,7 @@ public class MockDataGenerator {
                 "<fee>" + fee + "</fee>" +
                 "</currentProduct>" +
                 "</CustomerInfoResponse>";
-        
+
         return wrapInSoapEnvelope(responseBody);
     }
 
@@ -152,13 +152,13 @@ public class MockDataGenerator {
      */
     public String generateProductInfoResponse(String productCode) {
         ProductInfo product = getProductInfo(productCode);
-        
+
         String responseBody = "<ProductDetail>" +
                 "<productCode>" + product.code() + "</productCode>" +
                 "<productName>" + product.name() + "</productName>" +
                 "<fee>" + product.fee() + "</fee>" +
                 "</ProductDetail>";
-        
+
         return wrapInSoapEnvelope(responseBody);
     }
 
@@ -173,22 +173,22 @@ public class MockDataGenerator {
     public String generateProductChangeResponse(String phoneNumber, String productCode, String changeReason) {
         // 현재 상품은 5GX_STANDARD로 가정
         ProductInfo oldProduct = getProductInfo("5GX_STANDARD");
-        
+
         // 변경하려는 상품
         ProductInfo newProduct = getProductInfo(productCode);
-        
+
         // 추가 요금 계산 (신규 상품 요금이 더 비싼 경우 차액의 50%를 부과)
         int additionalFee = 0;
         if (newProduct.fee() > oldProduct.fee()) {
             additionalFee = (newProduct.fee() - oldProduct.fee()) / 2;
         }
-        
+
         // 트랜잭션 ID 생성
         String transactionId = "TRX" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
-        
+
         // 변경 일시
         String changeDate = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-        
+
         String responseBody = "<ProductChangeResponse>" +
                 "<success>true</success>" +
                 "<message>상품 변경이 완료되었습니다.</message>" +
@@ -206,7 +206,7 @@ public class MockDataGenerator {
                 "</newProduct>" +
                 "<additionalFee>" + additionalFee + "</additionalFee>" +
                 "</ProductChangeResponse>";
-        
+
         return wrapInSoapEnvelope(responseBody);
     }
 
@@ -234,8 +234,9 @@ public class MockDataGenerator {
     private ProductInfo getProductInfo(String productCode) {
         ProductInfo product = PRODUCT_MAP.get(productCode);
         if (product == null) {
-            log.warn("Product not found for code: {}", productCode);
-            throw new BizException(ErrorCode.BAD_REQUEST, "Invalid product code: " + productCode);
+            log.warn("Product not found for code: {}, using default product", productCode);
+            // 없는 상품코드인 경우 기본 상품으로 대체
+            return new ProductInfo(productCode, productCode + " 상품", 50000);
         }
         return product;
     }

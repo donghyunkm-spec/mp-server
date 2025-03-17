@@ -33,11 +33,17 @@ public class BillingServiceImpl implements BillingService {
     @Override
     public BillingInfoResponseDTO getCurrentBilling(String phoneNumber) {
         validatePhoneNumber(phoneNumber);
-        
+
         // 당월 청구 데이터 존재 여부 확인
         BillingStatusResponse statusResponse = ktAdapter.checkBillingStatus(phoneNumber);
         log.debug("BillingStatus for {}: {}", phoneNumber, statusResponse);
-        
+
+        // statusResponse가 null이면 기본 응답 생성
+        if (statusResponse == null) {
+            log.warn("BillingStatusResponse is null for phoneNumber: {}", phoneNumber);
+            return createDefaultBillingInfo(phoneNumber, getCurrentMonth());
+        }
+
         if (statusResponse.isBillingGenerated()) {
             // 당월 청구 데이터가 생성된 경우
             return getBillingInfo(phoneNumber, statusResponse.getCurrentBillingMonth());
@@ -59,7 +65,7 @@ public class BillingServiceImpl implements BillingService {
     public BillingInfoResponseDTO getSpecificBilling(String phoneNumber, String billingMonth) {
         validatePhoneNumber(phoneNumber);
         validateBillingMonth(billingMonth);
-        
+
         return getBillingInfo(phoneNumber, billingMonth);
     }
 
@@ -74,19 +80,46 @@ public class BillingServiceImpl implements BillingService {
     private BillingInfoResponseDTO getBillingInfo(String phoneNumber, String billingMonth) {
         // 캐시에서 먼저 조회
         BillingInfoResponseDTO cachedInfo = cacheService.getCachedBillingInfo(phoneNumber, billingMonth);
-        
+
         if (cachedInfo != null) {
             log.debug("Cache hit for {}, {}", phoneNumber, billingMonth);
+
+            // phoneNumber가 null인 경우 처리
+            if (cachedInfo.getPhoneNumber() == null || cachedInfo.getPhoneNumber().isEmpty()) {
+                cachedInfo.setPhoneNumber(phoneNumber);
+            }
+
+            // billingMonth가 null인 경우 처리
+            if (cachedInfo.getBillingMonth() == null || cachedInfo.getBillingMonth().isEmpty()) {
+                cachedInfo.setBillingMonth(billingMonth);
+            }
+
             return cachedInfo;
         }
-        
+
         // 캐시에 없는 경우 KT 어댑터를 통해 조회
         log.debug("Cache miss for {}, {}. Fetching from KT adapter.", phoneNumber, billingMonth);
         BillingInfoResponseDTO billingInfo = ktAdapter.getBillingInfo(phoneNumber, billingMonth);
-        
+
+        // 응답이 null인 경우 기본 응답 생성
+        if (billingInfo == null) {
+            log.warn("BillingInfoResponseDTO is null for phoneNumber: {}, billingMonth: {}", phoneNumber, billingMonth);
+            billingInfo = createDefaultBillingInfo(phoneNumber, billingMonth);
+        }
+
+        // phoneNumber가 null인 경우 처리
+        if (billingInfo.getPhoneNumber() == null || billingInfo.getPhoneNumber().isEmpty()) {
+            billingInfo.setPhoneNumber(phoneNumber);
+        }
+
+        // billingMonth가 null인 경우 처리
+        if (billingInfo.getBillingMonth() == null || billingInfo.getBillingMonth().isEmpty()) {
+            billingInfo.setBillingMonth(billingMonth);
+        }
+
         // 조회 결과를 캐시에 저장
         cacheService.cacheBillingInfo(phoneNumber, billingMonth, billingInfo);
-        
+
         return billingInfo;
     }
 
@@ -106,6 +139,32 @@ public class BillingServiceImpl implements BillingService {
             log.error("Error calculating previous month for {}: {}", currentMonth, e.getMessage());
             throw new BizException(ErrorCode.BAD_REQUEST, "Invalid billing month format");
         }
+    }
+
+    /**
+     * 현재 월을 YYYYMM 형식으로 반환합니다.
+     *
+     * @return 현재 월 (YYYYMM 형식)
+     */
+    private String getCurrentMonth() {
+        return LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
+    }
+
+    /**
+     * 기본 요금 정보 응답을 생성합니다.
+     *
+     * @param phoneNumber 회선 번호
+     * @param billingMonth 청구 년월 (YYYYMM 형식)
+     * @return 기본 요금 정보 응답
+     */
+    private BillingInfoResponseDTO createDefaultBillingInfo(String phoneNumber, String billingMonth) {
+        return BillingInfoResponseDTO.builder()
+                .phoneNumber(phoneNumber)
+                .billingMonth(billingMonth)
+                .totalFee(0)
+                .details(java.util.Collections.emptyList())
+                .discounts(java.util.Collections.emptyList())
+                .build();
     }
 
     /**
@@ -130,7 +189,7 @@ public class BillingServiceImpl implements BillingService {
         if (billingMonth == null || !billingMonth.matches("^\\d{6}$")) {
             throw new BizException(ErrorCode.BAD_REQUEST, "Invalid billing month format");
         }
-        
+
         try {
             int year = Integer.parseInt(billingMonth.substring(0, 4));
             int month = Integer.parseInt(billingMonth.substring(4, 6));
@@ -142,5 +201,3 @@ public class BillingServiceImpl implements BillingService {
         }
     }
 }
-
-

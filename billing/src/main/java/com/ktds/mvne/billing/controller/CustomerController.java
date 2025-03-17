@@ -3,6 +3,8 @@ package com.ktds.mvne.billing.controller;
 import com.ktds.mvne.billing.dto.CustomerInfoResponseDTO;
 import com.ktds.mvne.billing.service.CustomerService;
 import com.ktds.mvne.common.dto.ApiResponse;
+import com.ktds.mvne.common.exception.BizException;
+import com.ktds.mvne.common.exception.ErrorCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -38,7 +40,15 @@ public class CustomerController {
             @Parameter(description = "회선 번호", example = "01012345678")
             @PathVariable("phoneNumber") String phoneNumber) {
         log.debug("getCustomerInfo request for phoneNumber: {}", phoneNumber);
+
         CustomerInfoResponseDTO response = customerService.getCustomerInfo(phoneNumber);
+
+        // 응답의 phoneNumber가 null인 경우 요청값으로 설정
+        if (response.getPhoneNumber() == null || response.getPhoneNumber().isEmpty()) {
+            log.warn("응답의 phoneNumber가 null입니다. 요청값으로 설정합니다: {}", phoneNumber);
+            response.setPhoneNumber(phoneNumber);
+        }
+
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

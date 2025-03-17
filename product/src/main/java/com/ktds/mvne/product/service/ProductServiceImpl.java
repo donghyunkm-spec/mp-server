@@ -56,10 +56,18 @@ public class ProductServiceImpl implements ProductService {
     public ProductCheckResponse checkProductChangeAvailability(String phoneNumber, String productCode) {
         validatePhoneNumber(phoneNumber);
         validateProductCode(productCode);
-        
+
         // 1. 고객 정보 및 상태 확인
         CustomerInfoResponseDTO customerInfo = customerService.getCustomerInfo(phoneNumber);
-        
+
+        // 고객 정보나 현재 상품 정보가 없는 경우 처리
+        if (customerInfo == null || customerInfo.getCurrentProduct() == null) {
+            return ProductCheckResponse.builder()
+                    .available(false)
+                    .message("고객 정보를 조회할 수 없습니다.")
+                    .build();
+        }
+
         // 2. 현재 사용 중인 상품과 변경하려는 상품이 같은 경우
         if (customerInfo.getCurrentProduct().getProductCode().equals(productCode)) {
             return ProductCheckResponse.builder()
@@ -69,7 +77,7 @@ public class ProductServiceImpl implements ProductService {
                     .targetProduct(customerInfo.getCurrentProduct())
                     .build();
         }
-        
+
         // 3. 회선 상태 확인 (정지 상태가 아니어야 함)
         if (!"사용중".equals(customerInfo.getStatus())) {
             return ProductCheckResponse.builder()
@@ -79,7 +87,7 @@ public class ProductServiceImpl implements ProductService {
                     .targetProduct(null)
                     .build();
         }
-        
+
         // 4. 변경하려는 상품 정보 조회
         ProductInfoDTO targetProduct = ktAdapter.getProductInfo(productCode);
         if (targetProduct == null) {
@@ -90,7 +98,7 @@ public class ProductServiceImpl implements ProductService {
                     .targetProduct(null)
                     .build();
         }
-        
+
         // 5. 변경 가능 여부 확인
         return ProductCheckResponse.builder()
                 .available(true)
@@ -98,55 +106,6 @@ public class ProductServiceImpl implements ProductService {
                 .currentProduct(customerInfo.getCurrentProduct())
                 .targetProduct(targetProduct)
                 .build();
-    }
-
-    /**
-     * 상품 정보를 조회합니다.
-     *
-     * @param productCode 상품 코드
-     * @return 상품 정보
-     */
-
-    public ProductInfoDTO getProductInfo(String productCode) {
-        log.info("KT 어댑터 - 상품 정보 조회 요청 - 상품 코드: {}", productCode);
-
-        try {
-            String url = kosAdapterBaseUrl + "/api/kos/products/product-info?productCode=" + productCode;
-            log.debug("KOS 어댑터 호출 URL: {}", url);
-
-            // 실제 KOS 어댑터 호출 부분
-            ProductInfoDTO response = restTemplate.getForObject(url, ProductInfoDTO.class);
-
-            log.info("KT 어댑터 - 상품 정보 조회 응답: {}", response);
-
-            // null 체크 및 기본값 설정
-            if (response == null) {
-                log.warn("KT 어댑터 - 응답이 null입니다");
-                return createDefaultProductInfo(productCode);
-            }
-
-            // 상품 코드 설정
-            if (response.getProductCode() == null || response.getProductCode().isEmpty()) {
-                response.setProductCode(productCode);
-            }
-
-            return response;
-
-        } catch (Exception e) {
-            log.error("KT 어댑터 - 상품 정보 조회 실패: {}", e.getMessage(), e);
-            throw new ExternalSystemException("KT 시스템 연동 중 오류가 발생했습니다: " + e.getMessage(), 500, "KOS");
-        }
-    }
-
-    /**
-     * 기본 상품 정보 객체를 생성합니다.
-     */
-    private ProductInfoDTO createDefaultProductInfo(String productCode) {
-        ProductInfoDTO product = new ProductInfoDTO();
-        product.setProductCode(productCode);
-        product.setProductName("Unknown Product");
-        product.setFee(0);
-        return product;
     }
 
     /**
@@ -164,13 +123,13 @@ public class ProductServiceImpl implements ProductService {
     public ProductChangeResponse changeProduct(String phoneNumber, String productCode, String changeReason) {
         validatePhoneNumber(phoneNumber);
         validateProductCode(productCode);
-        
+
         // 1. 상품 변경 가능 여부 확인
         ProductCheckResponse checkResponse = checkProductChangeAvailability(phoneNumber, productCode);
         if (!checkResponse.isAvailable()) {
             throw new BizException(ErrorCode.BAD_REQUEST, checkResponse.getMessage());
         }
-        
+
         // 2. 상품 변경 요청 생성
         String requestId = UUID.randomUUID().toString();
         ProductChangeResult result = ProductChangeResult.builder()
@@ -182,16 +141,16 @@ public class ProductServiceImpl implements ProductService {
                 .timestamp(LocalDateTime.now())
                 .build();
         resultRepository.save(result);
-        
+
         // 3. KT 어댑터를 통해 상품 변경 요청
         ProductChangeResponse response = ktAdapter.changeProduct(phoneNumber, productCode, changeReason);
-        
+
         // 4. 변경 결과 저장
         result.setStatus(response.isSuccess() ? "COMPLETED" : "FAILED");
         result.setTransactionId(response.getTransactionId());
         result.setErrorMessage(response.isSuccess() ? null : response.getMessage());
         resultRepository.save(result);
-        
+
         return response;
     }
 
@@ -205,13 +164,13 @@ public class ProductServiceImpl implements ProductService {
      * @param t 발생한 예외
      * @return 폴백 응답
      */
-    public ProductChangeResponse changeProductFallback(String phoneNumber, String productCode, 
-                                                    String changeReason, Throwable t) {
+    public ProductChangeResponse changeProductFallback(String phoneNumber, String productCode,
+                                                       String changeReason, Throwable t) {
         log.warn("Circuit breaker is open. Falling back for productChange: {}, {}", phoneNumber, productCode, t);
-        
+
         // 1. 폴백 처리를 위한 요청 ID 생성
         String requestId = UUID.randomUUID().toString();
-        
+
         // 2. 비동기 처리를 위한 상품 변경 결과 저장
         ProductChangeResult result = ProductChangeResult.builder()
                 .requestId(requestId)
@@ -223,7 +182,7 @@ public class ProductServiceImpl implements ProductService {
                 .timestamp(LocalDateTime.now())
                 .build();
         resultRepository.save(result);
-        
+
         // 3. 폴백 응답 생성
         return ProductChangeResponse.builder()
                 .success(false)
@@ -238,27 +197,11 @@ public class ProductServiceImpl implements ProductService {
      * @param phoneNumber 검사할 전화번호
      * @throws BizException 유효하지 않은 전화번호인 경우
      */
-
-    /*
     private void validatePhoneNumber(String phoneNumber) {
-        if (!ValidationUtil.validatePhoneNumber(phoneNumber)) {
-            throw new BizException(ErrorCode.BAD_REQUEST, "Invalid phone number format");
+        if (phoneNumber == null || phoneNumber.isEmpty() || !phoneNumber.matches("^01(?:0|1|[6-9])[0-9]{7,8}$")) {
+            throw new BizException(ErrorCode.BAD_REQUEST, "유효하지 않은 전화번호 형식입니다");
         }
     }
-     */
-
-    // product-service/src/main/java/com/ktds/mvne/product/service/ProductServiceImpl.java
-    // validatePhoneNumber 메소드 수정
-
-    private boolean validatePhoneNumber(String phoneNumber) {
-        // ValidationUtil 클래스 대신 직접 구현
-        if (phoneNumber == null || phoneNumber.isEmpty()) {
-            return false;
-        }
-        return phoneNumber.matches("^01(?:0|1|[6-9])[0-9]{7,8}$");
-    }
-
-
 
     /**
      * 상품 코드의 유효성을 검사합니다.
@@ -268,12 +211,7 @@ public class ProductServiceImpl implements ProductService {
      */
     private void validateProductCode(String productCode) {
         if (!ValidationUtil.validateProductCode(productCode)) {
-            throw new BizException(ErrorCode.BAD_REQUEST, "Invalid product code format");
+            throw new BizException(ErrorCode.BAD_REQUEST, "유효하지 않은 상품 코드 형식입니다");
         }
     }
-
-
-
-
 }
-
