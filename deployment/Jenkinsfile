@@ -94,7 +94,7 @@ testcontainers.reuse.enable=true'''
                             podman build \
                                 --build-arg BUILD_LIB_DIR="${service}/build/libs" \
                                 --build-arg ARTIFACTORY_FILE="${service}.jar" \
-                                -f deployment/Dockerfile \
+                                -f deployment/container/Dockerfile \
                                 -t ${props.registry}/${props.image_org}/${service}:${imageTag} .
 
                             podman push ${props.registry}/${props.image_org}/${service}:${imageTag}
