@@ -1,0 +1,147 @@
+def PIPELINE_ID = "${env.BUILD_NUMBER}"
+
+def getImageTag() {
+    def dateFormat = new java.text.SimpleDateFormat('yyyyMMddHHmmss')
+    def currentDate = new Date()
+    return dateFormat.format(currentDate)
+}
+
+podTemplate(
+    label: "${PIPELINE_ID}",
+    serviceAccount: 'jenkins',
+    containers: [
+        containerTemplate(name: 'podman', image: "mgoltzsche/podman", ttyEnabled: true, command: 'cat', privileged: true),
+        containerTemplate(name: 'gradle',
+                        image: 'gradle:jdk17',
+                        ttyEnabled: true,
+                        command: 'cat',
+                        envVars: [
+                            envVar(key: 'DOCKER_HOST', value: 'unix:///run/podman/podman.sock'),
+                            envVar(key: 'TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE', value: '/run/podman/podman.sock'),
+                            envVar(key: 'TESTCONTAINERS_RYUK_DISABLED', value: 'true')
+                        ]),
+        containerTemplate(name: 'azure-cli', image: 'hiondal/azure-kubectl:latest', command: 'cat', ttyEnabled: true),
+        containerTemplate(name: 'envsubst', image: "hiondal/envsubst", command: 'sleep', args: '1h')
+    ],
+    volumes: [
+        emptyDirVolume(mountPath: '/home/gradle/.gradle', memory: false),
+        emptyDirVolume(mountPath: '/root/.azure', memory: false),
+        emptyDirVolume(mountPath: '/run/podman', memory: false)
+    ]
+) {
+    node(PIPELINE_ID) {
+        def props
+        def imageTag = getImageTag()
+        def manifest = "deploy.yaml"
+        def namespace
+        def services = ['billing', 'product', 'kos-adapter', 'kos-mock']
+
+        stage("Get Source") {
+            checkout scm
+            props = readProperties file: "deployment/deploy_env_vars"
+            namespace = "${props.namespace}"
+        }
+
+        stage("Setup AKS") {
+            container('azure-cli') {
+                withCredentials([azureServicePrincipal('azure-credentials')]) {
+                    sh """
+                        az login --service-principal -u \$AZURE_CLIENT_ID -p \$AZURE_CLIENT_SECRET -t \$AZURE_TENANT_ID
+                        az aks get-credentials --resource-group ictcoe-edu --name ${props.teamid}-aks --overwrite-existing
+                        kubectl create namespace ${namespace} --dry-run=client -o yaml | kubectl apply -f -
+                    """
+                }
+            }
+        }
+
+        stage('Build Applications') {
+            container('podman') {
+                sh 'podman system service -t 0 unix:///run/podman/podman.sock & sleep 2'
+            }
+
+            container('gradle') {
+                def testContainersConfig = '''docker.client.strategy=org.testcontainers.dockerclient.UnixSocketClientProviderStrategy
+docker.host=unix:///run/podman/podman.sock
+ryuk.container.privileged=true
+testcontainers.reuse.enable=true'''
+
+                sh """
+                    # TestContainers 설정
+                    mkdir -p billing/src/test/resources product/src/test/resources kos-adapter/src/test/resources kos-mock/src/test/resources
+                    echo '${testContainersConfig}' > billing/src/test/resources/testcontainers.properties
+                    echo '${testContainersConfig}' > product/src/test/resources/testcontainers.properties
+                    echo '${testContainersConfig}' > kos-adapter/src/test/resources/testcontainers.properties
+                    echo '${testContainersConfig}' > kos-mock/src/test/resources/testcontainers.properties
+
+                    # 빌드 실행
+                    chmod +x gradlew
+                    ./gradlew :billing:build :product:build :kos-adapter:build :kos-mock:build -x test
+                """
+            }
+        }
+
+        stage('Build & Push Images') {
+            container('podman') {
+                withCredentials([usernamePassword(
+                    credentialsId: 'acr-credentials',
+                    usernameVariable: 'USERNAME',
+                    passwordVariable: 'PASSWORD'
+                )]) {
+                    sh "podman login ${props.registry} --username \$USERNAME --password \$PASSWORD"
+
+                    services.each { service ->
+                        sh """
+                            podman build \
+                                --build-arg BUILD_LIB_DIR="${service}/build/libs" \
+                                --build-arg ARTIFACTORY_FILE="${service}.jar" \
+                                -f deployment/Dockerfile \
+                                -t ${props.registry}/${props.image_org}/${service}:${imageTag} .
+
+                            podman push ${props.registry}/${props.image_org}/${service}:${imageTag}
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Generate & Apply Manifest') {
+            container('envsubst') {
+                sh """
+                    export namespace=${namespace}
+                    export allowed_origins=${props.allowed_origins}
+                    export jwt_secret_key=${props.jwt_secret_key}
+                    export db_username=${props.db_username}
+                    export db_password=${props.db_password}
+                    export redis_password=${props.redis_password}
+                    export replicas=${props.replicas}
+                    export resources_requests_cpu=${props.resources_requests_cpu}
+                    export resources_requests_memory=${props.resources_requests_memory}
+                    export resources_limits_cpu=${props.resources_limits_cpu}
+                    export resources_limits_memory=${props.resources_limits_memory}
+
+                    # 이미지 경로 환경변수 설정
+                    export billing_image_path=${props.registry}/${props.image_org}/billing:${imageTag}
+                    export product_image_path=${props.registry}/${props.image_org}/product:${imageTag}
+                    export kos_adapter_image_path=${props.registry}/${props.image_org}/kos-adapter:${imageTag}
+                    export kos_mock_image_path=${props.registry}/${props.image_org}/kos-mock:${imageTag}
+
+                    # manifest 생성
+                    envsubst < deployment/${manifest}.template > deployment/${manifest}
+                    cat deployment/${manifest}
+                """
+            }
+
+            container('azure-cli') {
+                sh """
+                    kubectl apply -f deployment/${manifest}
+
+                    echo "Waiting for deployments to be ready..."
+                    kubectl -n ${namespace} wait --for=condition=available deployment/billing --timeout=300s
+                    kubectl -n ${namespace} wait --for=condition=available deployment/product --timeout=300s
+                    kubectl -n ${namespace} wait --for=condition=available deployment/kos-adapter --timeout=300s
+                    kubectl -n ${namespace} wait --for=condition=available deployment/kos-mock --timeout=300s
+                """
+            }
+        }
+    }
+}

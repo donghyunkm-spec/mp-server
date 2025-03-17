@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: billing-svc
+  namespace: oteam-mvne-ns
+spec:
+  selector:
+    app: billing
+  ports:
+  - port: 80
+    targetPort: 8081
+  type: ClusterIP

@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: product-cm
+  namespace: oteam-mvne-ns
+data:
+  SERVER_PORT: "8082"
+  KOS_ADAPTER_BASE_URL: "http://kos-adapter-svc"
+  DB_HOST: "postgresql-product"
+  DB_PORT: "5432"
+  DB_NAME: "oteamdb"
+  JPA_DDL_AUTO: "update"
+  JPA_SHOW_SQL: "false"
+  WORKER_CORE_POOL_SIZE: "2"
+  WORKER_MAX_POOL_SIZE: "5"
+  WORKER_QUEUE_CAPACITY: "10"
+  CIRCUIT_BREAKER_SLIDING_WINDOW_SIZE: "10"
+  CIRCUIT_BREAKER_MINIMUM_CALLS: "5"
+  CIRCUIT_BREAKER_FAILURE_RATE: "50"
+  CIRCUIT_BREAKER_WAIT_DURATION: "30000"
+  CIRCUIT_BREAKER_PERMITTED_CALLS_HALF_OPEN: "3"

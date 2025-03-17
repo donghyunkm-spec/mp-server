@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kos-mock
+  namespace: oteam-mvne-ns
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: kos-mock
+  template:
+    metadata:
+      labels:
+        app: kos-mock
+    spec:
+      containers:
+      - name: kos-mock
+        image: oteamcr.azurecr.io/mvne/kos-mock:1.0.0
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8084
+        resources:
+          requests:
+            cpu: 256m
+            memory: 256Mi
+          limits:
+            cpu: 1024m
+            memory: 1024Mi
+        envFrom:
+        - configMapRef:
+            name: common-cm
+        - configMapRef:
+            name: kos-mock-cm
+        - secretRef:
+            name: common-secret
+        startupProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8084
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        livenessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8084
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8084
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3

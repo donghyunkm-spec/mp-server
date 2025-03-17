@@ -1,0 +1,37 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mvne-ingress
+  namespace: oteam-mvne-ns
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /api/billings
+        pathType: Prefix
+        backend:
+          service:
+            name: billing-svc
+            port:
+              number: 80
+      - path: /api/products
+        pathType: Prefix
+        backend:
+          service:
+            name: product-svc
+            port:
+              number: 80
+      - path: /api/customers
+        pathType: Prefix
+        backend:
+          service:
+            name: product-svc
+            port:
+              number: 80
+      - path: /api/kos
+        pathType: Prefix
+        backend:
+          service:
+            name: kos-adapter-svc
+            port:
+              number: 80
