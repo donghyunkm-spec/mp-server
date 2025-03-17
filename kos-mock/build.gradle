@@ -10,5 +10,5 @@ dependencies {
 }
 
 bootJar {
-    archiveFileName = "kos-mock-service.jar"
+    archiveFileName = "kos-mock.jar"
 }

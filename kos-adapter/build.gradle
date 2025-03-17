@@ -10,5 +10,5 @@ dependencies {
 }
 
 bootJar {
-    archiveFileName = "kos-adapter-service.jar"
+    archiveFileName = "kos-adapter.jar"
 }

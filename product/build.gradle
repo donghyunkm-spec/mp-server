@@ -10,5 +10,5 @@ dependencies {
 }
 
 bootJar {
-    archiveFileName = "product-service.jar"
+    archiveFileName = "product.jar"
 }

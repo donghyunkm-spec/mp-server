@@ -34,6 +34,7 @@ dependencies {
 
 bootJar {
     enabled = false
+    archiveFileName = "common.jar"
 }
 
 jar {
