@@ -1,3 +1,4 @@
+// product/src/main/java/com/ktds/mvne/product/config/WebClientConfig.java
 package com.ktds.mvne.product.config;
 
 import io.netty.channel.ChannelOption;
@@ -6,6 +7,7 @@ import io.netty.handler.timeout.WriteTimeoutHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.tcp.TcpClient;
@@ -35,5 +37,15 @@ public class WebClientConfig {
         return WebClient.builder()
                 .clientConnector(new ReactorClientHttpConnector(HttpClient.from(tcpClient)))
                 .build();
+    }
+
+    /**
+     * RestTemplate 빈을 생성합니다.
+     *
+     * @return RestTemplate 인스턴스
+     */
+    @Bean
+    public RestTemplate restTemplate() {
+        return new RestTemplate();
     }
 }

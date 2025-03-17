@@ -33,8 +33,9 @@ azure:
       product-change: ${AZURE_SERVICEBUS_SUBSCRIPTION_PRODUCT_CHANGE:product-service-subscription}
 
 # KOS Adapter service configuration
-kos-adapter:
-  base-url: ${KOS_ADAPTER_BASE_URL:http://localhost:8083}
+kos:
+  adapter:
+    base-url: http://localhost:8083  # 또는 실제 필요한 URL 값
 
 # Circuit Breaker configuration
 resilience4j:
