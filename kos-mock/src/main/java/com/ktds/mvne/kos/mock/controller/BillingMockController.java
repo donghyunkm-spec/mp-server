@@ -39,10 +39,14 @@ public class BillingMockController {
     @Operation(summary = "요금 정보 변경 알림 발송", description = "KT 영업시스템에서 요금 정보 변경 알림을 발송합니다.")
     public ResponseEntity<ApiResponse<NotificationResponse>> notifyBillingChange(
             @RequestBody BillingChangeNotificationRequest request) {
-        log.info("Sending billing change notification for {}, {}, type: {}",
+        log.info("Mock 요금 정보 변경 알림 요청 - 전화번호: {}, 청구년월: {}, 타입: {}",
                 request.getPhoneNumber(), request.getBillingMonth(), request.getChangeType());
+        log.debug("요청 상세 정보: {}", request);
 
         NotificationResponse response = notificationSender.sendBillingChangeNotification(request);
+        log.info("Mock 요금 정보 변경 알림 응답 - 성공여부: {}, 메시지: {}",
+                response.isSuccess(), response.getMessage());
+
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -57,8 +61,12 @@ public class BillingMockController {
     public ResponseEntity<String> checkBillingStatus(
             @Parameter(description = "회선 번호", example = "01012345678")
             @RequestParam("phoneNumber") String phoneNumber) {
-        log.debug("Mock checkBillingStatus request for phoneNumber: {}", phoneNumber);
+        log.info("Mock 청구 상태 확인 요청 - 전화번호: {}", phoneNumber);
+
         String response = mockDataGenerator.generateBillingStatusResponse(phoneNumber);
+        log.info("Mock 청구 상태 확인 응답 생성 완료 - 전화번호: {}", phoneNumber);
+        log.debug("응답 내용: {}", response);
+
         return ResponseEntity.ok(response);
     }
 
@@ -79,15 +87,13 @@ public class BillingMockController {
                 ? requestBody.get("phoneNumber")
                 : "01012345678";
 
-        String billingMonth = (requestBody != null && requestBody.containsKey("billingMonth"))
-                ? requestBody.get("billingMonth")
-                : null;
+        log.info("Mock 고객 정보 조회(POST) 요청 - 전화번호: {}", phoneNumber);
+        log.debug("요청 본문: {}", requestBody);
 
-        log.debug("Mock getCustomerInfo POST request for phoneNumber: {}, billingMonth: {}",
-                phoneNumber, billingMonth);
-
-        String response = mockDataGenerator.generateBillingInfoResponse(phoneNumber,
-                billingMonth != null ? billingMonth : getCurrentMonth());
+        // BillingInfo 대신 CustomerInfo 생성
+        String response = mockDataGenerator.generateCustomerInfoResponse(phoneNumber);
+        log.info("Mock 고객 정보 조회(POST) 응답 생성 완료 - 전화번호: {}", phoneNumber);
+        log.debug("응답 내용: {}", response);
 
         return ResponseEntity.ok(response);
     }
@@ -106,10 +112,46 @@ public class BillingMockController {
             @RequestParam("phoneNumber") String phoneNumber,
             @Parameter(description = "청구 년월 (YYYYMM 형식)", example = "202403")
             @RequestParam("billingMonth") String billingMonth) {
-        log.debug("Mock getBillingInfo request for phoneNumber: {}, billingMonth: {}",
-                phoneNumber, billingMonth);
+        log.info("Mock 요금 정보 조회 요청 - 전화번호: {}, 청구년월: {}", phoneNumber, billingMonth);
 
         String response = mockDataGenerator.generateBillingInfoResponse(phoneNumber, billingMonth);
+        log.info("Mock 요금 정보 조회 응답 생성 완료 - 전화번호: {}, 청구년월: {}", phoneNumber, billingMonth);
+        log.debug("응답 내용: {}", response);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * KOS 어댑터가 요청하는 경로에 맞추기 위한 추가 엔드포인트: 청구 상태 확인
+     */
+    @GetMapping(value = "/kos/billings/billing-status", produces = MediaType.TEXT_XML_VALUE)
+    @Operation(summary = "청구 상태 확인 (KOS 어댑터용)", description = "KOS 어댑터 호환용 청구 상태 확인 API")
+    public ResponseEntity<String> checkBillingStatusForKosAdapter(
+            @RequestParam("phoneNumber") String phoneNumber) {
+        log.info("Mock 청구 상태 확인(KOS 어댑터용) 요청 - 전화번호: {}", phoneNumber);
+
+        String response = mockDataGenerator.generateBillingStatusResponse(phoneNumber);
+        log.info("Mock 청구 상태 확인(KOS 어댑터용) 응답 생성 완료 - 전화번호: {}", phoneNumber);
+        log.debug("응답 내용: {}", response);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * KOS 어댑터가 요청하는 경로에 맞추기 위한 추가 엔드포인트: 요금 정보 조회
+     */
+    @GetMapping(value = "/kos/billings/info", produces = MediaType.TEXT_XML_VALUE)
+    @Operation(summary = "요금 정보 조회 (KOS 어댑터용)", description = "KOS 어댑터 호환용 요금 정보 조회 API")
+    public ResponseEntity<String> getBillingInfoForKosAdapter(
+            @RequestParam("phoneNumber") String phoneNumber,
+            @RequestParam(value = "billingMonth", required = false) String billingMonth) {
+        log.info("Mock 요금 정보 조회(KOS 어댑터용) 요청 - 전화번호: {}, 청구년월: {}", phoneNumber, billingMonth);
+
+        String month = billingMonth != null ? billingMonth : getCurrentMonth();
+        String response = mockDataGenerator.generateBillingInfoResponse(phoneNumber, month);
+        log.info("Mock 요금 정보 조회(KOS 어댑터용) 응답 생성 완료 - 전화번호: {}, 청구년월: {}", phoneNumber, month);
+        log.debug("응답 내용: {}", response);
+
         return ResponseEntity.ok(response);
     }
 

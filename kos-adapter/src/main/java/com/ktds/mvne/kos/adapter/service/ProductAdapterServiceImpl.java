@@ -47,8 +47,8 @@ public class ProductAdapterServiceImpl implements ProductAdapterService {
             String responseXml = circuitBreaker.executeSupplier(() ->
                     kosClient.sendRequest(requestXml, "customer-info"));
 
-            CustomerInfoResponse response = xmlConverter.convertToJson(
-                    responseXml, CustomerInfoResponse.class);
+            CustomerInfoResponse response = xmlConverter.convertToJson(responseXml, CustomerInfoResponse.class);
+            log.debug("CustomerInfo response after XML conversion: {}", response);
 
             log.debug("CustomerInfo response for {}: {}", phoneNumber, response);
             return response;

@@ -11,8 +11,8 @@ public class ValidationUtil {
             Pattern.compile("^01[016789][0-9]{7,8}$");
     private static final Pattern EMAIL_PATTERN = 
             Pattern.compile("^[a-zA-Z0-9_+&*-]+(?:\\.[a-zA-Z0-9_+&*-]+)*@(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,7}$");
-    private static final Pattern PRODUCT_CODE_PATTERN = 
-            Pattern.compile("^[A-Z0-9]{5,10}$");
+    private static final Pattern PRODUCT_CODE_PATTERN = Pattern.compile("^[A-Z0-9_]{3,20}$");
+
 
     /**
      * 전화번호의 유효성을 검사합니다.

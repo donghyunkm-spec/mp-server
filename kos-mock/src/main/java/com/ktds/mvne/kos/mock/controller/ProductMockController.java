@@ -33,8 +33,12 @@ public class ProductMockController {
     public ResponseEntity<String> getCustomerInfo(
             @Parameter(description = "회선 번호", example = "01012345678")
             @PathVariable("phoneNumber") String phoneNumber) {
-        log.debug("Mock getCustomerInfo request for phoneNumber: {}", phoneNumber);
+        log.info("Mock 고객 정보 조회 요청 - 전화번호: {}", phoneNumber);
+
         String response = mockDataGenerator.generateCustomerInfoResponse(phoneNumber);
+        log.info("Mock 고객 정보 조회 응답 생성 완료 - 전화번호: {}", phoneNumber);
+        log.debug("응답 내용: {}", response);
+
         return ResponseEntity.ok(response);
     }
 
@@ -49,8 +53,12 @@ public class ProductMockController {
     public ResponseEntity<String> getProductInfo(
             @Parameter(description = "상품 코드", example = "5GX_STANDARD")
             @PathVariable("productCode") String productCode) {
-        log.debug("Mock getProductInfo request for productCode: {}", productCode);
+        log.info("Mock 상품 정보 조회 요청 - 상품코드: {}", productCode);
+
         String response = mockDataGenerator.generateProductInfoResponse(productCode);
+        log.info("Mock 상품 정보 조회 응답 생성 완료 - 상품코드: {}", productCode);
+        log.debug("응답 내용: {}", response);
+
         return ResponseEntity.ok(response);
     }
 
@@ -71,9 +79,53 @@ public class ProductMockController {
             @RequestParam("productCode") String productCode,
             @Parameter(description = "변경 사유", example = "데이터 사용량 증가")
             @RequestParam("changeReason") String changeReason) {
-        log.debug("Mock changeProduct request for phoneNumber: {}, productCode: {}, changeReason: {}",
+        log.info("Mock 상품 변경 요청 - 전화번호: {}, 상품코드: {}, 변경사유: {}",
                 phoneNumber, productCode, changeReason);
+
         String response = mockDataGenerator.generateProductChangeResponse(phoneNumber, productCode, changeReason);
+        log.info("Mock 상품 변경 응답 생성 완료 - 전화번호: {}, 상품코드: {}", phoneNumber, productCode);
+        log.debug("응답 내용: {}", response);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * KOS 어댑터가 요청하는 경로에 맞추기 위한 추가 엔드포인트
+     *
+     * @param phoneNumber 회선 번호
+     * @return 고객 정보
+     */
+    @GetMapping(value = "/kos/customers/{phoneNumber}", produces = MediaType.TEXT_XML_VALUE)
+    @Operation(summary = "고객 정보 조회 (KOS 어댑터용)", description = "KOS 어댑터 호환용 고객 정보 조회 API")
+    public ResponseEntity<String> getCustomerInfoForKosAdapter(
+            @Parameter(description = "회선 번호", example = "01012345678")
+            @PathVariable("phoneNumber") String phoneNumber) {
+        log.info("Mock 고객 정보 조회(KOS 어댑터용) 요청 - 전화번호: {}", phoneNumber);
+
+        String response = mockDataGenerator.generateCustomerInfoResponse(phoneNumber);
+        log.info("Mock 고객 정보 조회(KOS 어댑터용) 응답 생성 완료 - 전화번호: {}", phoneNumber);
+        log.debug("응답 내용: {}", response);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * KOS 어댑터가 요청하는 경로에 맞추기 위한 추가 엔드포인트
+     *
+     * @param productCode 상품 코드
+     * @return 상품 정보
+     */
+    @GetMapping(value = "/kos/products/{productCode}", produces = MediaType.TEXT_XML_VALUE)
+    @Operation(summary = "상품 정보 조회 (KOS 어댑터용)", description = "KOS 어댑터 호환용 상품 정보 조회 API")
+    public ResponseEntity<String> getProductInfoForKosAdapter(
+            @Parameter(description = "상품 코드", example = "5GX_STANDARD")
+            @PathVariable("productCode") String productCode) {
+        log.info("Mock 상품 정보 조회(KOS 어댑터용) 요청 - 상품코드: {}", productCode);
+
+        String response = mockDataGenerator.generateProductInfoResponse(productCode);
+        log.info("Mock 상품 정보 조회(KOS 어댑터용) 응답 생성 완료 - 상품코드: {}", productCode);
+        log.debug("응답 내용: {}", response);
+
         return ResponseEntity.ok(response);
     }
 }

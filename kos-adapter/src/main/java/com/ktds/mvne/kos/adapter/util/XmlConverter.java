@@ -74,9 +74,13 @@ public class XmlConverter {
         try {
             // 1. SOAP 엔벨로프에서 바디 추출
             String xmlBody = extractSoapBody(soapXml);
+            log.debug("Extracted XML body: {}", xmlBody);
 
             // 2. XML을 JSON 객체로 변환
-            return xmlMapper.readValue(xmlBody, responseType);
+            T result = xmlMapper.readValue(xmlBody, responseType);
+            log.debug("Converted object: {}", result);
+
+            return result;
         } catch (Exception e) {
             log.error("Failed to convert SOAP XML to JSON: {}", e.getMessage(), e);
             throw new BizException(ErrorCode.INTERNAL_SERVER_ERROR, "XML 파싱 실패: " + e.getMessage());

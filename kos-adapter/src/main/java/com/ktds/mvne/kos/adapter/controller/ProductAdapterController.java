@@ -1,6 +1,9 @@
+// 파일: kos-adapter/src/main/java/com/ktds/mvne/kos/adapter/controller/ProductAdapterController.java
+
 package com.ktds.mvne.kos.adapter.controller;
 
-import com.ktds.mvne.common.dto.ApiResponse;
+// ApiResponse 임포트를 제거합니다
+// import com.ktds.mvne.common.dto.ApiResponse;
 import com.ktds.mvne.kos.adapter.dto.CustomerInfoResponse;
 import com.ktds.mvne.kos.adapter.dto.ProductChangeResponse;
 import com.ktds.mvne.kos.adapter.dto.ProductDetail;
@@ -33,11 +36,14 @@ public class ProductAdapterController {
      */
     @GetMapping("/customers/{phoneNumber}")
     @Operation(summary = "고객 정보 조회", description = "고객의 회선 상태와 현재 사용 중인 상품 정보를 조회합니다.")
-    public ResponseEntity<ApiResponse<CustomerInfoResponse>> getCustomerInfo(
+    public ResponseEntity<CustomerInfoResponse> getCustomerInfo(
             @Parameter(description = "회선 번호", example = "01012345678")
             @PathVariable("phoneNumber") String phoneNumber) {
         log.debug("getCustomerInfo request for phoneNumber: {}", phoneNumber);
         CustomerInfoResponse response = productAdapterService.getCustomerInfo(phoneNumber);
+
+        // response 객체 로깅 - 문제 진단용
+        log.debug("CustomerInfo response before returning: {}", response);
 
         // phoneNumber가 null인 경우 요청 값으로 설정
         if (response.getPhoneNumber() == null || response.getPhoneNumber().isEmpty()) {
@@ -45,7 +51,8 @@ public class ProductAdapterController {
             response.setPhoneNumber(phoneNumber);
         }
 
-        return ResponseEntity.ok(ApiResponse.success(response));
+        // ApiResponse.success()를 제거하고 response 객체를 직접 반환
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -56,7 +63,7 @@ public class ProductAdapterController {
      */
     @GetMapping("/products/{productCode}")
     @Operation(summary = "상품 정보 조회", description = "상품 정보를 조회합니다.")
-    public ResponseEntity<ApiResponse<ProductDetail>> getProductInfo(
+    public ResponseEntity<ProductDetail> getProductInfo(
             @Parameter(description = "상품 코드", example = "5GX_STANDARD")
             @PathVariable("productCode") String productCode) {
         log.debug("getProductInfo request for productCode: {}", productCode);
@@ -68,7 +75,8 @@ public class ProductAdapterController {
             response.setProductCode(productCode);
         }
 
-        return ResponseEntity.ok(ApiResponse.success(response));
+        // ApiResponse.success()를 제거하고 response 객체를 직접 반환
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -81,7 +89,7 @@ public class ProductAdapterController {
      */
     @PostMapping("/products/change")
     @Operation(summary = "상품 변경", description = "현재 사용 중인 상품을 다른 상품으로 변경합니다.")
-    public ResponseEntity<ApiResponse<ProductChangeResponse>> changeProduct(
+    public ResponseEntity<ProductChangeResponse> changeProduct(
             @Parameter(description = "회선 번호", example = "01012345678")
             @RequestParam("phoneNumber") String phoneNumber,
             @Parameter(description = "변경하려는 상품 코드", example = "5GX_PREMIUM")
@@ -91,6 +99,8 @@ public class ProductAdapterController {
         log.debug("changeProduct request for phoneNumber: {}, productCode: {}, changeReason: {}",
                 phoneNumber, productCode, changeReason);
         ProductChangeResponse response = productAdapterService.changeProduct(phoneNumber, productCode, changeReason);
-        return ResponseEntity.ok(ApiResponse.success(response));
+
+        // ApiResponse.success()를 제거하고 response 객체를 직접 반환
+        return ResponseEntity.ok(response);
     }
 }

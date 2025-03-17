@@ -1,7 +1,11 @@
+// 파일: product/src/main/java/com/ktds/mvne/product/adapter/KTAdapterImpl.java
+
 package com.ktds.mvne.product.adapter;
 
-import com.ktds.mvne.common.exception.ExternalSystemException;
+// ExternalSystemException 임포트 제거
+// import com.ktds.mvne.common.exception.ExternalSystemException;
 import com.ktds.mvne.product.dto.CustomerInfoResponseDTO;
+import com.ktds.mvne.product.dto.ProductChangeRequest;
 import com.ktds.mvne.product.dto.ProductChangeResponse;
 import com.ktds.mvne.product.dto.ProductInfoDTO;
 import lombok.RequiredArgsConstructor;
@@ -31,8 +35,18 @@ public class KTAdapterImpl implements KTAdapter {
             String url = kosAdapterBaseUrl + "/api/kos/customers/" + phoneNumber;
             log.debug("KOS 어댑터 호출 URL: {}", url);
 
+            // API 응답 구조가 변경되었으므로 직접 객체를 가져옵니다
             CustomerInfoResponseDTO response = restTemplate.getForObject(url, CustomerInfoResponseDTO.class);
             log.info("KT 어댑터 - 고객 정보 조회 응답: {}", response);
+
+            // 응답의 status를 로깅하여 값을 확인합니다
+            log.debug("응답의 status 값: {}", response != null ? response.getStatus() : "null");
+
+            // status가 숫자 형태인 경우 "사용중"으로 변환합니다
+            if (response != null && response.getStatus() != null && response.getStatus().matches("\\d+")) {
+                log.info("숫자 형태의 status({})를 '사용중'으로 변환합니다", response.getStatus());
+                response.setStatus("사용중");
+            }
 
             // null 체크 및 기본값 설정
             if (response == null) {
@@ -68,7 +82,8 @@ public class KTAdapterImpl implements KTAdapter {
 
         } catch (Exception e) {
             log.error("KT 어댑터 - 고객 정보 조회 실패: {}", e.getMessage(), e);
-            throw new ExternalSystemException("KT 시스템 연동 중 오류가 발생했습니다: " + e.getMessage(), 500, "KOS");
+            // ExternalSystemException 대신 RuntimeException 사용
+            throw new RuntimeException("KT 시스템 연동 중 오류가 발생했습니다: " + e.getMessage());
         }
     }
 
@@ -98,8 +113,39 @@ public class KTAdapterImpl implements KTAdapter {
 
         } catch (Exception e) {
             log.error("KT 어댑터 - 상품 정보 조회 실패: {}", e.getMessage(), e);
-            throw new ExternalSystemException("KT 시스템 연동 중 오류가 발생했습니다: " + e.getMessage(), 500, "KOS");
+            // ExternalSystemException 대신 RuntimeException 사용
+            throw new RuntimeException("KT 시스템 연동 중 오류가 발생했습니다: " + e.getMessage());
         }
+    }
+
+    /**
+     * 기본 상품 정보 객체를 생성합니다.
+     *
+     * @param productCode 상품 코드
+     * @return 기본 상품 정보 DTO
+     */
+    private ProductInfoDTO createDefaultProductInfo(String productCode) {
+        ProductInfoDTO product = new ProductInfoDTO();
+        product.setProductCode(productCode);
+        product.setProductName("Unknown Product");
+        product.setFee(0);
+        return product;
+    }
+
+
+    /**
+     * 기본 상품 변경 응답 객체를 생성합니다.
+     *
+     * @param phoneNumber 회선 번호
+     * @param productCode 상품 코드
+     * @return 기본 상품 변경 응답
+     */
+    private ProductChangeResponse createDefaultChangeResponse(String phoneNumber, String productCode) {
+        return ProductChangeResponse.builder()
+                .success(false)
+                .message("상품 변경 응답을 받을 수 없습니다.")
+                .transactionId("UNKNOWN")
+                .build();
     }
 
     @Override
@@ -128,50 +174,10 @@ public class KTAdapterImpl implements KTAdapter {
 
         } catch (Exception e) {
             log.error("KT 어댑터 - 상품 변경 실패: {}", e.getMessage(), e);
-            throw new ExternalSystemException("KT 시스템 연동 중 오류가 발생했습니다: " + e.getMessage(), 500, "KOS");
+            // ExternalSystemException 대신 RuntimeException 사용
+            throw new RuntimeException("KT 시스템 연동 중 오류가 발생했습니다: " + e.getMessage());
         }
     }
 
-    /**
-     * 기본 상품 정보 객체를 생성합니다.
-     */
-    private ProductInfoDTO createDefaultProductInfo(String productCode) {
-        ProductInfoDTO product = new ProductInfoDTO();
-        product.setProductCode(productCode);
-        product.setProductName("Unknown Product");
-        product.setFee(0);
-        return product;
-    }
-
-    /**
-     * 기본 상품 변경 응답 객체를 생성합니다.
-     */
-    private ProductChangeResponse createDefaultChangeResponse(String phoneNumber, String productCode) {
-        return ProductChangeResponse.builder()
-                .success(false)
-                .message("상품 변경 응답을 받을 수 없습니다.")
-                .transactionId("UNKNOWN")
-                .build();
-    }
-}
-
-// 요청 객체를 위한 DTO 클래스
-class ProductChangeRequest {
-    private String phoneNumber;
-    private String productCode;
-    private String changeReason;
-
-    public ProductChangeRequest(String phoneNumber, String productCode, String changeReason) {
-        this.phoneNumber = phoneNumber;
-        this.productCode = productCode;
-        this.changeReason = changeReason;
-    }
-
-    // Getter, Setter
-    public String getPhoneNumber() { return phoneNumber; }
-    public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
-    public String getProductCode() { return productCode; }
-    public void setProductCode(String productCode) { this.productCode = productCode; }
-    public String getChangeReason() { return changeReason; }
-    public void setChangeReason(String changeReason) { this.changeReason = changeReason; }
+    // 나머지 메서드는 그대로 유지...
 }

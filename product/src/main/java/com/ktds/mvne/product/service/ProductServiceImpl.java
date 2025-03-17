@@ -210,7 +210,13 @@ public class ProductServiceImpl implements ProductService {
      * @throws BizException 유효하지 않은 상품 코드인 경우
      */
     private void validateProductCode(String productCode) {
-        if (!ValidationUtil.validateProductCode(productCode)) {
+        if (productCode == null || productCode.isEmpty()) {
+            throw new BizException(ErrorCode.BAD_REQUEST, "상품 코드는 필수 항목입니다");
+        }
+
+        // 상품 코드 형식 검증을 완화하거나 현재 사용 중인 형식에 맞게 조정
+        // 예: 대문자, 숫자, 언더스코어를 허용하는 패턴
+        if (!productCode.matches("^[A-Z0-9_]{3,20}$")) {
             throw new BizException(ErrorCode.BAD_REQUEST, "유효하지 않은 상품 코드 형식입니다");
         }
     }

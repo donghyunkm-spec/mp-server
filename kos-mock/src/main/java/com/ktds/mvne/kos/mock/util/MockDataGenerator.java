@@ -126,13 +126,12 @@ public class MockDataGenerator {
      * @return SOAP XML 응답
      */
     public String generateCustomerInfoResponse(String phoneNumber) {
-        // 고객 정보 생성
         String productCode = "5GX_STANDARD";
         String productName = "5G 스탠다드";
         int fee = 55000;
 
         String responseBody = "<CustomerInfoResponse>" +
-                "<phoneNumber>" + phoneNumber + "</phoneNumber>" +
+                "<phoneNumber>" + phoneNumber + "</phoneNumber>" + // 여기에 입력받은 phoneNumber 사용
                 "<status>사용중</status>" +
                 "<currentProduct>" +
                 "<productCode>" + productCode + "</productCode>" +

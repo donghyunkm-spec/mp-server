@@ -1,6 +1,9 @@
+// 파일: kos-adapter/src/main/java/com/ktds/mvne/kos/adapter/controller/BillingAdapterController.java
+
 package com.ktds.mvne.kos.adapter.controller;
 
-import com.ktds.mvne.common.dto.ApiResponse;
+// ApiResponse 임포트를 제거합니다
+// import com.ktds.mvne.common.dto.ApiResponse;
 import com.ktds.mvne.kos.adapter.dto.BillingInfoResponse;
 import com.ktds.mvne.kos.adapter.dto.BillingStatusResponse;
 import com.ktds.mvne.kos.adapter.service.BillingAdapterService;
@@ -35,7 +38,7 @@ public class BillingAdapterController {
      */
     @GetMapping("/billing-status")
     @Operation(summary = "청구 상태 확인", description = "당월 청구 데이터 존재 여부를 확인합니다.")
-    public ResponseEntity<ApiResponse<BillingStatusResponse>> checkBillingStatus(
+    public ResponseEntity<BillingStatusResponse> checkBillingStatus(
             @Parameter(description = "회선 번호", example = "01012345678")
             @RequestParam("phoneNumber") String phoneNumber) {
         log.debug("checkBillingStatus request for phoneNumber: {}", phoneNumber);
@@ -47,7 +50,8 @@ public class BillingAdapterController {
             response.setPhoneNumber(phoneNumber);
         }
 
-        return ResponseEntity.ok(ApiResponse.success(response));
+        // ApiResponse.success()를 제거하고 response 객체를 직접 반환
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -59,7 +63,7 @@ public class BillingAdapterController {
      */
     @GetMapping("/info")
     @Operation(summary = "요금 정보 조회", description = "지정된 월의 요금 정보를 조회합니다.")
-    public ResponseEntity<ApiResponse<BillingInfoResponse>> getBillingInfo(
+    public ResponseEntity<BillingInfoResponse> getBillingInfo(
             @Parameter(description = "회선 번호", example = "01012345678")
             @RequestParam("phoneNumber") String phoneNumber,
             @Parameter(description = "청구 년월 (YYYYMM 형식)", example = "202403")
@@ -79,6 +83,7 @@ public class BillingAdapterController {
             response.setBillingMonth(billingMonth);
         }
 
-        return ResponseEntity.ok(ApiResponse.success(response));
+        // ApiResponse.success()를 제거하고 response 객체를 직접 반환
+        return ResponseEntity.ok(response);
     }
 }
