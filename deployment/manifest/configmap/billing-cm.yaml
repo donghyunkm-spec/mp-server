@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: billing-cm
+  namespace: oteam-mvne-ns
+data:
+  SERVER_PORT: "8081"
+  KOS_ADAPTER_BASE_URL: "http://kos-adapter-svc"
+  DB_HOST: "postgresql-billing"
+  DB_PORT: "5432"
+  DB_NAME: "oteamdb"
+  JPA_DDL_AUTO: "update"
+  JPA_SHOW_SQL: "false"
+  REDIS_HOST: "redis-master"
+  REDIS_PORT: "6379"
+  CACHE_BILLING_INFO_TTL_HOURS: "24"
+  CIRCUIT_BREAKER_SLIDING_WINDOW_SIZE: "10"
+  CIRCUIT_BREAKER_MINIMUM_CALLS: "5"
+  CIRCUIT_BREAKER_FAILURE_RATE: "50"
+  CIRCUIT_BREAKER_WAIT_DURATION: "30000"
+  CIRCUIT_BREAKER_PERMITTED_CALLS_HALF_OPEN: "3"

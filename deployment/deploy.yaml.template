@@ -1,0 +1,461 @@
+# ConfigMap
+apiVersion: v1
+data:
+  ALLOWED_ORIGINS: ${allowed_origins}
+  LOG_LEVEL: INFO
+  SERVER_PORT: '8080'
+  SWAGGER_ENABLED: 'true'
+kind: ConfigMap
+metadata:
+  name: common-cm
+  namespace: ${namespace}
+
+---
+apiVersion: v1
+data:
+  CACHE_BILLING_INFO_TTL_HOURS: '24'
+  CIRCUIT_BREAKER_FAILURE_RATE: '50'
+  CIRCUIT_BREAKER_MINIMUM_CALLS: '5'
+  CIRCUIT_BREAKER_PERMITTED_CALLS_HALF_OPEN: '3'
+  CIRCUIT_BREAKER_SLIDING_WINDOW_SIZE: '10'
+  CIRCUIT_BREAKER_WAIT_DURATION: '30000'
+  DB_HOST: postgresql-billing
+  DB_NAME: oteamdb
+  DB_PORT: '5432'
+  JPA_DDL_AUTO: update
+  JPA_SHOW_SQL: 'false'
+  KOS_ADAPTER_BASE_URL: http://kos-adapter-svc
+  REDIS_HOST: redis-master
+  REDIS_PORT: '6379'
+  SERVER_PORT: '8081'
+kind: ConfigMap
+metadata:
+  name: billing-cm
+  namespace: ${namespace}
+
+---
+apiVersion: v1
+data:
+  CIRCUIT_BREAKER_FAILURE_RATE: '50'
+  CIRCUIT_BREAKER_MINIMUM_CALLS: '5'
+  CIRCUIT_BREAKER_PERMITTED_CALLS_HALF_OPEN: '3'
+  CIRCUIT_BREAKER_SLIDING_WINDOW_SIZE: '10'
+  CIRCUIT_BREAKER_WAIT_DURATION: '30000'
+  KOS_MOCK_BASE_URL: http://kos-mock-svc
+  SERVER_PORT: '8083'
+  STAMP_DEFAULT: default-stamp
+  STAMP_ENABLED: 'true'
+  STAMP_HEADER_NAME: X-MVNO-Stamp
+  USE_REAL_KOS: 'false'
+kind: ConfigMap
+metadata:
+  name: kos-adapter-cm
+  namespace: ${namespace}
+
+---
+apiVersion: v1
+data:
+  BILLING_CHANGE_NOTIFICATION_URL: http://billing-svc:8081/api/notifications/billing-change
+  NOTIFICATION_SCHEDULE_CRON: 0 0/5 * * * ?
+  NOTIFICATION_SCHEDULE_ENABLED: 'true'
+  SERVER_PORT: '8084'
+kind: ConfigMap
+metadata:
+  name: kos-mock-cm
+  namespace: ${namespace}
+
+---
+apiVersion: v1
+data:
+  CIRCUIT_BREAKER_FAILURE_RATE: '50'
+  CIRCUIT_BREAKER_MINIMUM_CALLS: '5'
+  CIRCUIT_BREAKER_PERMITTED_CALLS_HALF_OPEN: '3'
+  CIRCUIT_BREAKER_SLIDING_WINDOW_SIZE: '10'
+  CIRCUIT_BREAKER_WAIT_DURATION: '30000'
+  DB_HOST: postgresql-product
+  DB_NAME: oteamdb
+  DB_PORT: '5432'
+  JPA_DDL_AUTO: update
+  JPA_SHOW_SQL: 'false'
+  KOS_ADAPTER_BASE_URL: http://kos-adapter-svc
+  SERVER_PORT: '8082'
+  WORKER_CORE_POOL_SIZE: '2'
+  WORKER_MAX_POOL_SIZE: '5'
+  WORKER_QUEUE_CAPACITY: '10'
+kind: ConfigMap
+metadata:
+  name: product-cm
+  namespace: ${namespace}
+
+---
+# Secrets
+apiVersion: v1
+kind: Secret
+metadata:
+  name: common-secret
+  namespace: ${namespace}
+stringData:
+  JWT_SECRET_KEY: ${jwt_secret_key}
+  SECURITY_PASSWORD: admin
+  SECURITY_USER: admin
+type: Opaque
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: billing-secret
+  namespace: ${namespace}
+stringData:
+  DB_PASSWORD: ${db_password}
+  DB_USERNAME: ${db_username}
+  REDIS_PASSWORD: ${redis_password}
+type: Opaque
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: product-secret
+  namespace: ${namespace}
+stringData:
+  DB_PASSWORD: ${db_password}
+  DB_USERNAME: ${db_username}
+type: Opaque
+
+---
+# Deployments
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing
+  namespace: ${namespace}
+spec:
+  replicas: ${replicas}
+  selector:
+    matchLabels:
+      app: billing
+  template:
+    metadata:
+      labels:
+        app: billing
+    spec:
+      containers:
+      - envFrom:
+        - configMapRef:
+            name: common-cm
+        - configMapRef:
+            name: billing-cm
+        - secretRef:
+            name: common-secret
+        - secretRef:
+            name: billing-secret
+        image: ${billing_image_path}
+        imagePullPolicy: Always
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /actuator/health
+            port: 8081
+          periodSeconds: 10
+          timeoutSeconds: 5
+        name: billing
+        ports:
+        - containerPort: 8081
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /actuator/health
+            port: 8081
+          periodSeconds: 10
+          timeoutSeconds: 5
+        resources:
+          limits:
+            cpu: ${resources_limits_cpu}
+            memory: ${resources_limits_memory}
+          requests:
+            cpu: ${resources_requests_cpu}
+            memory: ${resources_requests_memory}
+        startupProbe:
+          failureThreshold: 6
+          httpGet:
+            path: /actuator/health
+            port: 8081
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: product
+  namespace: ${namespace}
+spec:
+  replicas: ${replicas}
+  selector:
+    matchLabels:
+      app: product
+  template:
+    metadata:
+      labels:
+        app: product
+    spec:
+      containers:
+      - envFrom:
+        - configMapRef:
+            name: common-cm
+        - configMapRef:
+            name: product-cm
+        - secretRef:
+            name: common-secret
+        - secretRef:
+            name: product-secret
+        image: ${product_image_path}
+        imagePullPolicy: Always
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /actuator/health
+            port: 8082
+          periodSeconds: 10
+          timeoutSeconds: 5
+        name: product
+        ports:
+        - containerPort: 8082
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /actuator/health
+            port: 8082
+          periodSeconds: 10
+          timeoutSeconds: 5
+        resources:
+          limits:
+            cpu: ${resources_limits_cpu}
+            memory: ${resources_limits_memory}
+          requests:
+            cpu: ${resources_requests_cpu}
+            memory: ${resources_requests_memory}
+        startupProbe:
+          failureThreshold: 6
+          httpGet:
+            path: /actuator/health
+            port: 8082
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kos-adapter
+  namespace: ${namespace}
+spec:
+  replicas: ${replicas}
+  selector:
+    matchLabels:
+      app: kos-adapter
+  template:
+    metadata:
+      labels:
+        app: kos-adapter
+    spec:
+      containers:
+      - envFrom:
+        - configMapRef:
+            name: common-cm
+        - configMapRef:
+            name: kos-adapter-cm
+        - secretRef:
+            name: common-secret
+        image: ${kos_adapter_image_path}
+        imagePullPolicy: Always
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /actuator/health
+            port: 8083
+          periodSeconds: 10
+          timeoutSeconds: 5
+        name: kos-adapter
+        ports:
+        - containerPort: 8083
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /actuator/health
+            port: 8083
+          periodSeconds: 10
+          timeoutSeconds: 5
+        resources:
+          limits:
+            cpu: ${resources_limits_cpu}
+            memory: ${resources_limits_memory}
+          requests:
+            cpu: ${resources_requests_cpu}
+            memory: ${resources_requests_memory}
+        startupProbe:
+          failureThreshold: 6
+          httpGet:
+            path: /actuator/health
+            port: 8083
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kos-mock
+  namespace: ${namespace}
+spec:
+  replicas: ${replicas}
+  selector:
+    matchLabels:
+      app: kos-mock
+  template:
+    metadata:
+      labels:
+        app: kos-mock
+    spec:
+      containers:
+      - envFrom:
+        - configMapRef:
+            name: common-cm
+        - configMapRef:
+            name: kos-mock-cm
+        - secretRef:
+            name: common-secret
+        image: ${kos_mock_image_path}
+        imagePullPolicy: Always
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /actuator/health
+            port: 8084
+          periodSeconds: 10
+          timeoutSeconds: 5
+        name: kos-mock
+        ports:
+        - containerPort: 8084
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /actuator/health
+            port: 8084
+          periodSeconds: 10
+          timeoutSeconds: 5
+        resources:
+          limits:
+            cpu: ${resources_limits_cpu}
+            memory: ${resources_limits_memory}
+          requests:
+            cpu: ${resources_requests_cpu}
+            memory: ${resources_requests_memory}
+        startupProbe:
+          failureThreshold: 6
+          httpGet:
+            path: /actuator/health
+            port: 8084
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+
+---
+# Services
+apiVersion: v1
+kind: Service
+metadata:
+  name: billing-svc
+  namespace: ${namespace}
+spec:
+  ports:
+  - port: 80
+    targetPort: 8081
+  selector:
+    app: billing
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: product-svc
+  namespace: ${namespace}
+spec:
+  ports:
+  - port: 80
+    targetPort: 8082
+  selector:
+    app: product
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kos-adapter-svc
+  namespace: ${namespace}
+spec:
+  ports:
+  - port: 80
+    targetPort: 8083
+  selector:
+    app: kos-adapter
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kos-mock-svc
+  namespace: ${namespace}
+spec:
+  ports:
+  - port: 80
+    targetPort: 8084
+  selector:
+    app: kos-mock
+  type: ClusterIP
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mvne-ingress
+  namespace: ${namespace}
+spec:
+  rules:
+  - http:
+      paths:
+      - backend:
+          service:
+            name: billing-svc
+            port:
+              number: 80
+        path: /api/billings
+        pathType: Prefix
+      - backend:
+          service:
+            name: product-svc
+            port:
+              number: 80
+        path: /api/products
+        pathType: Prefix
+      - backend:
+          service:
+            name: product-svc
+            port:
+              number: 80
+        path: /api/customers
+        pathType: Prefix
+      - backend:
+          service:
+            name: kos-adapter-svc
+            port:
+              number: 80
+        path: /api/kos
+        pathType: Prefix

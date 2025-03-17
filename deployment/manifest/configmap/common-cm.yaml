@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: common-cm
+  namespace: oteam-mvne-ns
+data:
+  ALLOWED_ORIGINS: "http://localhost:3000,http://4.230.147.248"
+  LOG_LEVEL: "INFO"
+  SWAGGER_ENABLED: "true"
+  SERVER_PORT: "8080"

@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kos-adapter
+  namespace: oteam-mvne-ns
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: kos-adapter
+  template:
+    metadata:
+      labels:
+        app: kos-adapter
+    spec:
+      containers:
+      - name: kos-adapter
+        image: oteamcr.azurecr.io/mvne/kos-adapter:1.0.0
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8083
+        resources:
+          requests:
+            cpu: 256m
+            memory: 256Mi
+          limits:
+            cpu: 1024m
+            memory: 1024Mi
+        envFrom:
+        - configMapRef:
+            name: common-cm
+        - configMapRef:
+            name: kos-adapter-cm
+        - secretRef:
+            name: common-secret
+        startupProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8083
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        livenessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8083
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8083
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
