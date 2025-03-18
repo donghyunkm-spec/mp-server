@@ -1,0 +1,28 @@
+## Globally shared configuration
+global:
+  # -- Default domain used by all components
+  ## Used for ingresses, certificates, SSO, notifications, etc.
+  ## IP는 외부에서 접근할 수 있는 ks8 node의 Public IP 또는 
+  ## ingress-nginx-controller 서비스의 External IP이여야 함
+  domain: argo.20.249.176.215.nip.io
+  
+  # -- 특정 노드에 배포시 지정
+  #nodeSelector:
+    #agentpool: argocd
+
+server:
+  ingress:
+    enabled: true
+    https: true
+    annotations:
+      kubernetes.io/ingress.class: nginx
+    tls:
+      - secretName: argocd-tls-secret
+  extraArgs:
+    - --insecure  # ArgoCD 서버가 TLS 종료를 Ingress에 위임
+
+configs:
+  params:
+    server.insecure: true  # Ingress에서 TLS를 처리하므로 ArgoCD 서버는 HTTP로 통신
+certificate:
+  enabled: false  # 자체 서명 인증서 사용 비활성화 (외부 인증서 사용 시)

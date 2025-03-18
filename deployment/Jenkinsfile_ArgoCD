@@ -21,7 +21,7 @@ podTemplate(
                             envVar(key: 'TESTCONTAINERS_RYUK_DISABLED', value: 'true')
                         ]),
         containerTemplate(name: 'azure-cli', image: 'hiondal/azure-kubectl:latest', command: 'cat', ttyEnabled: true),
-        containerTemplate(name: 'envsubst', image: "hiondal/envsubst", command: 'sleep', args: '1h')
+        containerTemplate(name: 'git', image: 'alpine/git:latest', command: 'cat', ttyEnabled: true)
     ],
     volumes: [
         emptyDirVolume(mountPath: '/home/gradle/.gradle', memory: false),
@@ -32,9 +32,10 @@ podTemplate(
     node(PIPELINE_ID) {
         def props
         def imageTag = getImageTag()
-        def manifest = "deploy.yaml"
         def namespace
         def services = ['billing', 'product', 'kos-adapter', 'kos-mock']
+        def manifestRepo = "https://github.com/HyoJooJo/mvne-manifest.git"
+        def manifestDir = "mvne-manifest"
 
         stage("Get Source") {
             checkout scm
@@ -104,42 +105,46 @@ testcontainers.reuse.enable=true'''
             }
         }
 
-        stage('Generate & Apply Manifest') {
-            container('envsubst') {
-                sh """
-                    export namespace=${namespace}
-                    export allowed_origins=${props.allowed_origins}
-                    export jwt_secret_key=${props.jwt_secret_key}
-                    export db_username=${props.db_username}
-                    export db_password=${props.db_password}
-                    export redis_password=${props.redis_password}
-                    export replicas=${props.replicas}
-                    export resources_requests_cpu=${props.resources_requests_cpu}
-                    export resources_requests_memory=${props.resources_requests_memory}
-                    export resources_limits_cpu=${props.resources_limits_cpu}
-                    export resources_limits_memory=${props.resources_limits_memory}
+        stage('Update Deployment Manifests') {
+            container('git') {
+                withCredentials([usernamePassword(
+                    credentialsId: 'github-credentials',
+                    usernameVariable: 'GIT_USERNAME',
+                    passwordVariable: 'GIT_PASSWORD'
+                )]) {
+                    // GitHub 인증 설정
+                    sh """
+                        git config --global user.email "jenkins@example.com"
+                        git config --global user.name "Jenkins CI"
+                        git clone https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/HyoJooJo/mvne-manifest.git ${manifestDir}
+                    """
 
-                    # 이미지 경로 환경변수 설정
-                    export billing_image_path=${props.registry}/${props.image_org}/billing:${imageTag}
-                    export product_image_path=${props.registry}/${props.image_org}/product:${imageTag}
-                    export kos_adapter_image_path=${props.registry}/${props.image_org}/kos-adapter:${imageTag}
-                    export kos_mock_image_path=${props.registry}/${props.image_org}/kos-mock:${imageTag}
+                    // 각 서비스별 이미지 업데이트
+                    services.each { service ->
+                        def imagePath = "${props.registry}/${props.image_org}/${service}:${imageTag}"
+                        sh """
+                            cd ${manifestDir}
+                            # yq 대신 sed 사용하여 이미지 태그 업데이트
+                            sed -i 's|image: ${props.registry}/${props.image_org}/${service}:.*|image: ${imagePath}|g' mp-server/deployment/${service}-deployment.yaml
+                            git add mp-server/deployment/${service}-deployment.yaml
+                        """
+                    }
 
-                    # manifest 생성
-                    envsubst < deployment/${manifest}.template > deployment/${manifest}
-                    cat deployment/${manifest}
-                """
+                    // 변경사항 커밋 및 푸시
+                    sh """
+                        cd ${manifestDir}
+                        git commit -m "Update backend service images to tag ${imageTag}" || echo "No changes to commit"
+                        git push
+                    """
+                }
             }
+        }
 
+        stage('Verify Deployment') {
             container('azure-cli') {
                 sh """
-                    kubectl apply -f deployment/${manifest}
-
-                    # echo "Waiting for deployments to be ready..."
-                    # kubectl -n ${namespace} wait --for=condition=available deployment/billing --timeout=300s
-                    # kubectl -n ${namespace} wait --for=condition=available deployment/product --timeout=300s
-                    # kubectl -n ${namespace} wait --for=condition=available deployment/kos-adapter --timeout=300s
-                    # kubectl -n ${namespace} wait --for=condition=available deployment/kos-mock --timeout=300s
+                    echo "ArgoCD will automatically sync and deploy the updated manifests."
+                    echo "Backend services updated with image tag: ${imageTag}"
                 """
             }
         }
