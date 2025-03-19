@@ -1,9 +1,6 @@
-// 파일: product/src/main/java/com/ktds/mvne/product/adapter/KTAdapterImpl.java
-
+// File: mp-server\product\src\main\java\com\ktds\mvne\product\adapter\KTAdapterImpl.java
 package com.ktds.mvne.product.adapter;
 
-// ExternalSystemException 임포트 제거
-// import com.ktds.mvne.common.exception.ExternalSystemException;
 import com.ktds.mvne.product.dto.CustomerInfoResponseDTO;
 import com.ktds.mvne.product.dto.ProductChangeRequest;
 import com.ktds.mvne.product.dto.ProductChangeResponse;
@@ -11,8 +8,11 @@ import com.ktds.mvne.product.dto.ProductInfoDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 /**
  * KT 영업시스템과의 연동을 위한 어댑터 구현체입니다.
@@ -104,8 +104,11 @@ public class KTAdapterImpl implements KTAdapter {
                 return createDefaultProductInfo(productCode);
             }
 
-            // 상품 코드 설정
-            if (response.getProductCode() == null || response.getProductCode().isEmpty()) {
+            // 상품 코드 설정 - 여기서 중요 수정: 원래 요청한 productCode로 맞춰줌
+            if (response.getProductCode() == null || response.getProductCode().isEmpty() ||
+                    !response.getProductCode().equals(productCode)) {
+                log.warn("KT 어댑터 - 응답의 상품 코드({})가 요청한 상품 코드({})와 다릅니다. 요청 값으로 설정합니다.",
+                        response.getProductCode(), productCode);
                 response.setProductCode(productCode);
             }
 
@@ -132,7 +135,6 @@ public class KTAdapterImpl implements KTAdapter {
         return product;
     }
 
-
     /**
      * 기본 상품 변경 응답 객체를 생성합니다.
      *
@@ -154,13 +156,26 @@ public class KTAdapterImpl implements KTAdapter {
                 phoneNumber, productCode, changeReason);
 
         try {
-            String url = kosAdapterBaseUrl + "/api/kos/products/change";
+            // URL에 쿼리 파라미터 추가 (중요 수정: REST 호출 시 phoneNumber 파라미터 명시적 추가)
+            String url = UriComponentsBuilder.fromHttpUrl(kosAdapterBaseUrl + "/api/kos/products/change")
+                    .queryParam("phoneNumber", phoneNumber)
+                    .queryParam("productCode", productCode)
+                    .queryParam("changeReason", changeReason)
+                    .build()
+                    .toUriString();
+
+            log.debug("KOS 어댑터 호출 URL: {}", url);
 
             // 요청 객체 생성
             ProductChangeRequest request = new ProductChangeRequest(phoneNumber, productCode, changeReason);
 
-            // KOS 어댑터 호출
-            ProductChangeResponse response = restTemplate.postForObject(url, request, ProductChangeResponse.class);
+            // KOS 어댑터 호출 (GET 방식으로 변경)
+            ProductChangeResponse response = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    new HttpEntity<>(request),
+                    ProductChangeResponse.class
+            ).getBody();
 
             log.info("KT 어댑터 - 상품 변경 응답: {}", response);
 
@@ -178,6 +193,4 @@ public class KTAdapterImpl implements KTAdapter {
             throw new RuntimeException("KT 시스템 연동 중 오류가 발생했습니다: " + e.getMessage());
         }
     }
-
-    // 나머지 메서드는 그대로 유지...
 }

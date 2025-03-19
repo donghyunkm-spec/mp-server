@@ -1,3 +1,4 @@
+// File: mp-server\kos-mock\src\main\java\com\ktds\mvne\kos\mock\controller\ProductMockController.java
 package com.ktds.mvne.kos.mock.controller;
 
 import com.ktds.mvne.kos.mock.util.MockDataGenerator;
@@ -9,6 +10,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 /**
  * KT 영업시스템의 상품 관련 API를 목업으로 제공하는 컨트롤러 클래스입니다.
@@ -55,7 +58,8 @@ public class ProductMockController {
             @PathVariable("productCode") String productCode) {
         log.info("Mock 상품 정보 조회 요청 - 상품코드: {}", productCode);
 
-        String response = mockDataGenerator.generateProductInfoResponse(productCode);
+        // 수정된 부분: 입력 상품코드 그대로 응답으로 반환하도록 수정
+        String response = mockDataGenerator.generateProductInfoResponse(productCode, productCode);
         log.info("Mock 상품 정보 조회 응답 생성 완료 - 상품코드: {}", productCode);
         log.debug("응답 내용: {}", response);
 
@@ -122,8 +126,61 @@ public class ProductMockController {
             @PathVariable("productCode") String productCode) {
         log.info("Mock 상품 정보 조회(KOS 어댑터용) 요청 - 상품코드: {}", productCode);
 
-        String response = mockDataGenerator.generateProductInfoResponse(productCode);
+        // 수정된 부분: 입력 상품코드 그대로 응답으로 반환하도록 수정
+        String response = mockDataGenerator.generateProductInfoResponse(productCode, productCode);
         log.info("Mock 상품 정보 조회(KOS 어댑터용) 응답 생성 완료 - 상품코드: {}", productCode);
+        log.debug("응답 내용: {}", response);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 상품 정보를 조회합니다. (billings 경로 대응용)
+     *
+     * @param productCode 상품 코드
+     * @return 상품 정보
+     */
+    @PostMapping(value = "/billings/product-info", produces = MediaType.TEXT_XML_VALUE)
+    @Operation(summary = "상품 정보 조회 (billings 경로 대응용)", description = "상품 정보를 조회합니다.")
+    public ResponseEntity<String> getProductInfoForBillings(
+            @RequestBody(required = false) Map<String, String> requestBody) {
+
+        // 요청 본문에서 상품 코드 추출
+        String productCode = (requestBody != null && requestBody.containsKey("productCode"))
+                ? requestBody.get("productCode")
+                : "5GX_STANDARD";  // 기본값 설정
+
+        log.info("Mock 상품 정보 조회(billings 경로) 요청 - 상품코드: {}", productCode);
+
+        // 수정된 부분: 입력 상품코드 그대로 응답으로 반환하도록 수정
+        String response = mockDataGenerator.generateProductInfoResponse(productCode, productCode);
+        log.info("Mock 상품 정보 조회(billings 경로) 응답 생성 완료 - 상품코드: {}", productCode);
+        log.debug("응답 내용: {}", response);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 상품 정보를 조회합니다. (billings 경로 대응용 GET 메서드)
+     *
+     * @param productCode 상품 코드
+     * @return 상품 정보
+     */
+    @GetMapping(value = "/billings/product-info", produces = MediaType.TEXT_XML_VALUE)
+    @Operation(summary = "상품 정보 조회 (billings 경로 대응용 GET)", description = "상품 정보를 조회합니다.")
+    public ResponseEntity<String> getProductInfoForBillingsGet(
+            @RequestParam(value = "productCode", required = false) String productCode) {
+
+        // 상품 코드가 없는 경우 기본값 설정
+        if (productCode == null || productCode.isEmpty()) {
+            productCode = "5GX_STANDARD";
+        }
+
+        log.info("Mock 상품 정보 조회(billings 경로 GET) 요청 - 상품코드: {}", productCode);
+
+        // 수정된 부분: 입력 상품코드 그대로 응답으로 반환하도록 수정
+        String response = mockDataGenerator.generateProductInfoResponse(productCode, productCode);
+        log.info("Mock 상품 정보 조회(billings 경로 GET) 응답 생성 완료 - 상품코드: {}", productCode);
         log.debug("응답 내용: {}", response);
 
         return ResponseEntity.ok(response);

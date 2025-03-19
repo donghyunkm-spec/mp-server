@@ -1,3 +1,4 @@
+// File: mp-server/kos-mock/src/main/java/com/ktds/mvne/kos/mock/util/MockDataGenerator.java
 package com.ktds.mvne.kos.mock.util;
 
 import com.ktds.mvne.common.exception.BizException;
@@ -9,9 +10,7 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -43,6 +42,12 @@ public class MockDataGenerator {
      * @return SOAP XML 응답
      */
     public String generateBillingStatusResponse(String phoneNumber) {
+        // 입력 파라미터 검증
+        if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
+            phoneNumber = "01012345678"; // 기본값 설정
+            log.warn("Empty phone number provided, using default: {}", phoneNumber);
+        }
+
         // 현재 월은 청구 데이터가 생성된 것으로 가정
         YearMonth currentMonth = YearMonth.now();
         String yearMonth = currentMonth.format(DateTimeFormatter.ofPattern("yyyyMM"));
@@ -53,6 +58,7 @@ public class MockDataGenerator {
                 "<billingGenerated>true</billingGenerated>" +
                 "</BillingStatusResponse>";
 
+        log.debug("Generated BillingStatusResponse for phone: {}, month: {}", phoneNumber, yearMonth);
         return wrapInSoapEnvelope(responseBody);
     }
 
@@ -64,9 +70,28 @@ public class MockDataGenerator {
      * @return SOAP XML 응답
      */
     public String generateBillingInfoResponse(String phoneNumber, String billingMonth) {
-        // 기본 요금과 부가 서비스 요금 생성
-        int baseFee = 55000;
-        int dataFee = 10000;
+        // 입력 파라미터 검증
+        if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
+            phoneNumber = "01012345678"; // 기본값 설정
+            log.warn("Empty phone number provided, using default: {}", phoneNumber);
+        }
+
+        if (billingMonth == null || billingMonth.trim().isEmpty()) {
+            billingMonth = YearMonth.now().format(DateTimeFormatter.ofPattern("yyyyMM")); // 현재 월 사용
+            log.warn("Empty billing month provided, using current month: {}", billingMonth);
+        }
+
+        // 마지막 두 자리가 해당 월에 영향을 주도록 랜덤 데이터 생성
+        int monthValue = 1;
+        try {
+            monthValue = Integer.parseInt(billingMonth.substring(4, 6));
+        } catch (Exception e) {
+            log.warn("Failed to parse month from {}, using default value", billingMonth);
+        }
+
+        // 기본 요금과 부가 서비스 요금 생성 - 월에 따라 약간의 변동 적용
+        int baseFee = 55000 + (monthValue * 100);
+        int dataFee = 10000 + (monthValue * 50);
         int serviceFee1 = 5000;
         int serviceFee2 = 3000;
         int deviceFee = 25000;
@@ -116,6 +141,8 @@ public class MockDataGenerator {
                 "</deviceInstallment>" +
                 "</BillingInfoResponse>";
 
+        log.debug("Generated BillingInfoResponse for phone: {}, month: {}, totalFee: {}",
+                phoneNumber, billingMonth, totalFee);
         return wrapInSoapEnvelope(responseBody);
     }
 
@@ -126,20 +153,54 @@ public class MockDataGenerator {
      * @return SOAP XML 응답
      */
     public String generateCustomerInfoResponse(String phoneNumber) {
-        String productCode = "5GX_STANDARD";
-        String productName = "5G 스탠다드";
-        int fee = 55000;
+        // 입력 파라미터 검증
+        if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
+            phoneNumber = "01012345678"; // 기본값 설정
+            log.warn("Empty phone number provided, using default: {}", phoneNumber);
+        }
+
+        // 전화번호 마지막 자리에 따라 다양한 상품 할당
+        String lastDigit = phoneNumber.substring(phoneNumber.length() - 1);
+        String productCode = "5GX_STANDARD"; // 기본값
+
+        try {
+            int digit = Integer.parseInt(lastDigit);
+
+            switch (digit % 5) {
+                case 0:
+                    productCode = "5GX_BASIC";
+                    break;
+                case 1:
+                    productCode = "5GX_STANDARD";
+                    break;
+                case 2:
+                    productCode = "5GX_PREMIUM";
+                    break;
+                case 3:
+                    productCode = "LTE_BASIC";
+                    break;
+                case 4:
+                    productCode = "LTE_STANDARD";
+                    break;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to parse last digit from {}, using default product", phoneNumber);
+        }
+
+        ProductInfo product = getProductInfo(productCode);
 
         String responseBody = "<CustomerInfoResponse>" +
-                "<phoneNumber>" + phoneNumber + "</phoneNumber>" + // 여기에 입력받은 phoneNumber 사용
+                "<phoneNumber>" + phoneNumber + "</phoneNumber>" +
                 "<status>사용중</status>" +
                 "<currentProduct>" +
-                "<productCode>" + productCode + "</productCode>" +
-                "<productName>" + productName + "</productName>" +
-                "<fee>" + fee + "</fee>" +
+                "<productCode>" + product.code() + "</productCode>" +
+                "<productName>" + product.name() + "</productName>" +
+                "<fee>" + product.fee() + "</fee>" +
                 "</currentProduct>" +
                 "</CustomerInfoResponse>";
 
+        log.debug("Generated CustomerInfoResponse for phone: {}, product: {}",
+                phoneNumber, product.code());
         return wrapInSoapEnvelope(responseBody);
     }
 
@@ -150,14 +211,40 @@ public class MockDataGenerator {
      * @return SOAP XML 응답
      */
     public String generateProductInfoResponse(String productCode) {
+        return generateProductInfoResponse(productCode, null);
+    }
+
+    /**
+     * 상품 정보 응답 SOAP XML을 생성합니다.
+     * 응답에 사용할 상품 코드를 별도로 지정할 수 있습니다.
+     *
+     * @param productCode 상품 코드
+     * @param outputProductCode 응답에 사용할 상품 코드 (null인 경우 productCode 사용)
+     * @return SOAP XML 응답
+     */
+    public String generateProductInfoResponse(String productCode, String outputProductCode) {
+        // 입력 파라미터 검증
+        if (productCode == null || productCode.trim().isEmpty()) {
+            productCode = "5GX_STANDARD"; // 기본값 설정
+            log.warn("Empty product code provided, using default: {}", productCode);
+        }
+
+        // 출력용 상품 코드가 null인 경우 입력 상품 코드 사용
+        if (outputProductCode == null || outputProductCode.trim().isEmpty()) {
+            outputProductCode = productCode;
+        }
+
         ProductInfo product = getProductInfo(productCode);
 
+        // 중요 수정: 응답에서 상품 코드를 요청한 상품 코드 그대로 반환
         String responseBody = "<ProductDetail>" +
-                "<productCode>" + product.code() + "</productCode>" +
+                "<productCode>" + outputProductCode + "</productCode>" +
                 "<productName>" + product.name() + "</productName>" +
                 "<fee>" + product.fee() + "</fee>" +
                 "</ProductDetail>";
 
+        log.debug("Generated ProductInfoResponse for product: {}, fee: {}, using outputProductCode: {}",
+                product.code(), product.fee(), outputProductCode);
         return wrapInSoapEnvelope(responseBody);
     }
 
@@ -170,6 +257,17 @@ public class MockDataGenerator {
      * @return SOAP XML 응답
      */
     public String generateProductChangeResponse(String phoneNumber, String productCode, String changeReason) {
+        // 입력 파라미터 검증
+        if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
+            phoneNumber = "01012345678"; // 기본값 설정
+            log.warn("Empty phone number provided, using default: {}", phoneNumber);
+        }
+
+        if (productCode == null || productCode.trim().isEmpty()) {
+            productCode = "5GX_PREMIUM"; // 기본값 설정
+            log.warn("Empty product code provided, using default: {}", productCode);
+        }
+
         // 현재 상품은 5GX_STANDARD로 가정
         ProductInfo oldProduct = getProductInfo("5GX_STANDARD");
 
@@ -199,13 +297,15 @@ public class MockDataGenerator {
                 "<fee>" + oldProduct.fee() + "</fee>" +
                 "</previousProduct>" +
                 "<newProduct>" +
-                "<productCode>" + newProduct.code() + "</productCode>" +
+                "<productCode>" + productCode + "</productCode>" +
                 "<productName>" + newProduct.name() + "</productName>" +
                 "<fee>" + newProduct.fee() + "</fee>" +
                 "</newProduct>" +
                 "<additionalFee>" + additionalFee + "</additionalFee>" +
                 "</ProductChangeResponse>";
 
+        log.debug("Generated ProductChangeResponse - from: {}, to: {}, additionalFee: {}",
+                oldProduct.code(), productCode, additionalFee);
         return wrapInSoapEnvelope(responseBody);
     }
 
@@ -228,7 +328,6 @@ public class MockDataGenerator {
      *
      * @param productCode 상품 코드
      * @return 상품 정보
-     * @throws BizException 상품 정보가 없는 경우
      */
     private ProductInfo getProductInfo(String productCode) {
         ProductInfo product = PRODUCT_MAP.get(productCode);

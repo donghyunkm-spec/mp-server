@@ -1,9 +1,6 @@
-// 파일: kos-adapter/src/main/java/com/ktds/mvne/kos/adapter/controller/ProductAdapterController.java
-
+// File: mp-server\kos-adapter\src\main\java\com\ktds\mvne\kos\adapter\controller\ProductAdapterController.java
 package com.ktds.mvne.kos.adapter.controller;
 
-// ApiResponse 임포트를 제거합니다
-// import com.ktds.mvne.common.dto.ApiResponse;
 import com.ktds.mvne.kos.adapter.dto.CustomerInfoResponse;
 import com.ktds.mvne.kos.adapter.dto.ProductChangeResponse;
 import com.ktds.mvne.kos.adapter.dto.ProductDetail;

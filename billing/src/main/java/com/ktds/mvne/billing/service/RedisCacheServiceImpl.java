@@ -33,8 +33,23 @@ public class RedisCacheServiceImpl implements CacheService {
      */
     @Override
     public BillingInfoResponseDTO getCachedBillingInfo(String phoneNumber, String billingMonth) {
-        String cacheKey = generateCacheKey(phoneNumber, billingMonth);
-        return redisTemplate.opsForValue().get(cacheKey);
+        try {
+            String cacheKey = generateCacheKey(phoneNumber, billingMonth);
+            log.debug("Looking up cache with key: {}", cacheKey);
+
+            BillingInfoResponseDTO cachedInfo = redisTemplate.opsForValue().get(cacheKey);
+
+            if (cachedInfo != null) {
+                log.debug("Cache hit for key: {}", cacheKey);
+                return cachedInfo;
+            } else {
+                log.debug("Cache miss for key: {}", cacheKey);
+                return null;
+            }
+        } catch (Exception e) {
+            log.error("Error retrieving data from cache: {} - {}", phoneNumber, billingMonth, e);
+            return null; // 캐시 오류 시에도 서비스 지속
+        }
     }
 
     /**
@@ -46,14 +61,34 @@ public class RedisCacheServiceImpl implements CacheService {
      */
     @Override
     public void cacheBillingInfo(String phoneNumber, String billingMonth, BillingInfoResponseDTO billingInfo) {
-        if (billingInfo == null) {
-            log.warn("Attempted to cache null billing info for {}, {}", phoneNumber, billingMonth);
-            return;
+        try {
+            if (billingInfo == null) {
+                log.warn("Attempted to cache null billing info for {}, {}", phoneNumber, billingMonth);
+                return;
+            }
+
+            // 캐싱할 데이터의 유효성 검증
+            if (billingInfo.getDetails() == null || billingInfo.getTotalFee() == null) {
+                log.warn("Invalid billing info data for caching: {}, {}", phoneNumber, billingMonth);
+                return;
+            }
+
+            String cacheKey = generateCacheKey(phoneNumber, billingMonth);
+
+            // Redis에 저장 시도할 때 추가 예외 처리
+            try {
+                redisTemplate.opsForValue().set(cacheKey, billingInfo, ttlHours, TimeUnit.HOURS);
+                log.debug("Cached billing info for {}, {} with TTL {} hours", phoneNumber, billingMonth, ttlHours);
+            } catch (Exception e) {
+                // Redis 서버 연결 실패 등 심각한 오류인 경우 메시지만 로깅하고 진행
+                log.error("Failed to store data in Redis cache: {} - {}: {}", phoneNumber, billingMonth, e.getMessage());
+                // 오류를 상위로 전파하지 않음 - 캐시 저장 실패는 서비스 전체 실패로 이어지지 않아야 함
+            }
+        } catch (Exception e) {
+            // 기타 예외 처리
+            log.error("Error caching billing info: {} - {}: {}", phoneNumber, billingMonth, e.getMessage());
+            // 캐시 저장 실패는 크리티컬한 오류가 아니므로 예외를 전파하지 않음
         }
-        
-        String cacheKey = generateCacheKey(phoneNumber, billingMonth);
-        redisTemplate.opsForValue().set(cacheKey, billingInfo, ttlHours, TimeUnit.HOURS);
-        log.debug("Cached billing info for {}, {} with TTL {} hours", phoneNumber, billingMonth, ttlHours);
     }
 
     /**
@@ -64,9 +99,28 @@ public class RedisCacheServiceImpl implements CacheService {
      */
     @Override
     public void updateCache(String phoneNumber, String billingMonth) {
-        log.debug("Updating cache for {}, {}", phoneNumber, billingMonth);
-        BillingInfoResponseDTO updatedInfo = ktAdapter.getBillingInfo(phoneNumber, billingMonth);
-        cacheBillingInfo(phoneNumber, billingMonth, updatedInfo);
+        try {
+            log.debug("Updating cache for {}, {}", phoneNumber, billingMonth);
+
+            // 기존 캐시 데이터 삭제
+            String cacheKey = generateCacheKey(phoneNumber, billingMonth);
+            Boolean deleted = redisTemplate.delete(cacheKey);
+            log.debug("Deleted existing cache entry: {} - result: {}", cacheKey, deleted);
+
+            // KT 어댑터를 통해 최신 데이터 조회
+            BillingInfoResponseDTO updatedInfo = ktAdapter.getBillingInfo(phoneNumber, billingMonth);
+
+            // 새로운 데이터 캐싱
+            if (updatedInfo != null) {
+                cacheBillingInfo(phoneNumber, billingMonth, updatedInfo);
+                log.debug("Cache updated for {}, {}", phoneNumber, billingMonth);
+            } else {
+                log.warn("Could not update cache - null response from KT adapter: {}, {}", phoneNumber, billingMonth);
+            }
+        } catch (Exception e) {
+            log.error("Error updating cache for {}, {}: {}", phoneNumber, billingMonth, e.getMessage(), e);
+            // 캐시 갱신 실패는 크리티컬한 오류가 아니므로 예외를 전파하지 않음
+        }
     }
 
     /**

@@ -34,23 +34,29 @@ public class BillingServiceImpl implements BillingService {
     public BillingInfoResponseDTO getCurrentBilling(String phoneNumber) {
         validatePhoneNumber(phoneNumber);
 
-        // 당월 청구 데이터 존재 여부 확인
-        BillingStatusResponse statusResponse = ktAdapter.checkBillingStatus(phoneNumber);
-        log.debug("BillingStatus for {}: {}", phoneNumber, statusResponse);
+        try {
+            // 당월 청구 데이터 존재 여부 확인
+            BillingStatusResponse statusResponse = ktAdapter.checkBillingStatus(phoneNumber);
+            log.debug("BillingStatus for {}: {}", phoneNumber, statusResponse);
 
-        // statusResponse가 null이면 기본 응답 생성
-        if (statusResponse == null) {
-            log.warn("BillingStatusResponse is null for phoneNumber: {}", phoneNumber);
+            // statusResponse가 null이면 기본 응답 생성
+            if (statusResponse == null) {
+                log.warn("BillingStatusResponse is null for phoneNumber: {}", phoneNumber);
+                return createDefaultBillingInfo(phoneNumber, getCurrentMonth());
+            }
+
+            if (statusResponse.isBillingGenerated()) {
+                // 당월 청구 데이터가 생성된 경우
+                return getBillingInfo(phoneNumber, statusResponse.getCurrentBillingMonth());
+            } else {
+                // 당월 청구 데이터가 생성되지 않은 경우 전월 데이터 조회
+                String previousMonth = calculatePreviousMonth(statusResponse.getCurrentBillingMonth());
+                return getBillingInfo(phoneNumber, previousMonth);
+            }
+        } catch (Exception e) {
+            log.error("Error retrieving current billing for {}: {}", phoneNumber, e.getMessage(), e);
+            // 예외가 발생하더라도 기본 응답 제공
             return createDefaultBillingInfo(phoneNumber, getCurrentMonth());
-        }
-
-        if (statusResponse.isBillingGenerated()) {
-            // 당월 청구 데이터가 생성된 경우
-            return getBillingInfo(phoneNumber, statusResponse.getCurrentBillingMonth());
-        } else {
-            // 당월 청구 데이터가 생성되지 않은 경우 전월 데이터 조회
-            String previousMonth = calculatePreviousMonth(statusResponse.getCurrentBillingMonth());
-            return getBillingInfo(phoneNumber, previousMonth);
         }
     }
 
@@ -66,7 +72,13 @@ public class BillingServiceImpl implements BillingService {
         validatePhoneNumber(phoneNumber);
         validateBillingMonth(billingMonth);
 
-        return getBillingInfo(phoneNumber, billingMonth);
+        try {
+            return getBillingInfo(phoneNumber, billingMonth);
+        } catch (Exception e) {
+            log.error("Error retrieving specific billing for {}, {}: {}", phoneNumber, billingMonth, e.getMessage(), e);
+            // 예외가 발생하더라도 기본 응답 제공
+            return createDefaultBillingInfo(phoneNumber, billingMonth);
+        }
     }
 
     /**
@@ -117,8 +129,11 @@ public class BillingServiceImpl implements BillingService {
             billingInfo.setBillingMonth(billingMonth);
         }
 
-        // 조회 결과를 캐시에 저장
-        cacheService.cacheBillingInfo(phoneNumber, billingMonth, billingInfo);
+        // 응답이 유효한 경우에만 캐시에 저장
+        if (billingInfo != null && billingInfo.getDetails() != null) {
+            // 조회 결과를 캐시에 저장
+            cacheService.cacheBillingInfo(phoneNumber, billingMonth, billingInfo);
+        }
 
         return billingInfo;
     }

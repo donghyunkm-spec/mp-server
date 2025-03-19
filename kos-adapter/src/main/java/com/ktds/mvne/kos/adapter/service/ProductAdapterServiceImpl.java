@@ -1,3 +1,4 @@
+// File: mp-server\kos-adapter\src\main\java\com\ktds\mvne\kos\adapter\service\ProductAdapterServiceImpl.java
 package com.ktds.mvne.kos.adapter.service;
 
 import com.ktds.mvne.common.exception.BizException;
@@ -79,6 +80,14 @@ public class ProductAdapterServiceImpl implements ProductAdapterService {
             ProductDetail response = xmlConverter.convertToJson(
                     responseXml, ProductDetail.class);
 
+            // 수정: KOS Mock에서 반환한 상품 코드와 요청한 상품 코드가 다른 경우 처리
+            if (response != null && (response.getProductCode() == null ||
+                    !response.getProductCode().equals(productCode))) {
+                log.warn("응답의 상품 코드({})가 요청한 상품 코드({})와 다릅니다. 요청 값으로 설정합니다.",
+                        response.getProductCode(), productCode);
+                response.setProductCode(productCode);
+            }
+
             log.debug("ProductInfo response for {}: {}", productCode, response);
             return response;
 
@@ -102,8 +111,12 @@ public class ProductAdapterServiceImpl implements ProductAdapterService {
         validateProductCode(productCode);
 
         try {
+            // ProductChangeRequest 객체에 파라미터 명확히 포함
             String requestXml = xmlConverter.convertToSoapXml(
                     new ProductChangeRequest(phoneNumber, productCode, changeReason));
+
+            // 로그 추가하여 XML 요청 내용 확인
+            log.debug("Product change request XML: {}", requestXml);
 
             String responseXml = circuitBreaker.executeSupplier(() ->
                     kosClient.sendRequest(requestXml, "change"));

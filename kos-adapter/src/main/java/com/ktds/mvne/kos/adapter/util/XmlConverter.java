@@ -40,7 +40,9 @@ public class XmlConverter {
         this.jsonMapper = new ObjectMapper()
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         this.xmlMapper = (XmlMapper) new XmlMapper()
-                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+                .configure(DeserializationFeature.ACCEPT_EMPTY_STRING_AS_NULL_OBJECT, true)
+                .configure(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY, true);
     }
 
     /**
@@ -53,9 +55,13 @@ public class XmlConverter {
         try {
             // 1. JSON 객체를 XML로 변환
             String xmlBody = xmlMapper.writeValueAsString(jsonRequest);
+            log.debug("Converted JSON to XML body: {}", xmlBody);
 
             // 2. SOAP 엔벨로프로 감싸기
-            return createSoapEnvelope(xmlBody);
+            String soapXml = createSoapEnvelope(xmlBody);
+            log.debug("Created SOAP envelope: {}", soapXml);
+
+            return soapXml;
         } catch (Exception e) {
             log.error("Failed to convert JSON to SOAP XML: {}", e.getMessage(), e);
             throw new BizException(ErrorCode.INTERNAL_SERVER_ERROR, "XML 변환 실패: " + e.getMessage());
@@ -72,6 +78,12 @@ public class XmlConverter {
      */
     public <T> T convertToJson(String soapXml, Class<T> responseType) {
         try {
+            // null 또는 빈 문자열 처리
+            if (soapXml == null || soapXml.trim().isEmpty()) {
+                log.warn("SOAP XML is null or empty, returning null");
+                return null;
+            }
+
             // 1. SOAP 엔벨로프에서 바디 추출
             String xmlBody = extractSoapBody(soapXml);
             log.debug("Extracted XML body: {}", xmlBody);
@@ -83,6 +95,7 @@ public class XmlConverter {
             return result;
         } catch (Exception e) {
             log.error("Failed to convert SOAP XML to JSON: {}", e.getMessage(), e);
+            log.debug("SOAP XML content: {}", soapXml);
             throw new BizException(ErrorCode.INTERNAL_SERVER_ERROR, "XML 파싱 실패: " + e.getMessage());
         }
     }
@@ -95,6 +108,7 @@ public class XmlConverter {
      */
     private String createSoapEnvelope(String bodyContent) throws Exception {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setNamespaceAware(true);
         DocumentBuilder builder = factory.newDocumentBuilder();
         Document document = builder.newDocument();
 
@@ -151,7 +165,9 @@ public class XmlConverter {
         }
 
         if (bodyList.getLength() == 0) {
-            throw new BizException(ErrorCode.INTERNAL_SERVER_ERROR, "SOAP Body를 찾을 수 없습니다.");
+            // XML이 SOAP 형식이 아니라면, 전체 XML을 반환
+            log.warn("SOAP Body not found, treating entire XML as content");
+            return soapXml;
         }
 
         // 바디의 첫 번째 자식 엘리먼트 추출 (응답 객체)
