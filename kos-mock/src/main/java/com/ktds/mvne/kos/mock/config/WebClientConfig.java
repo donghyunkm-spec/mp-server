@@ -1,39 +1,33 @@
 package com.ktds.mvne.kos.mock.config;
-
-import io.netty.channel.ChannelOption;
-import io.netty.handler.timeout.ReadTimeoutHandler;
-import io.netty.handler.timeout.WriteTimeoutHandler;
+import org.springframework.beans.factory.annotation.Value; // lombok.Value 대신 spring의 Value로 변경
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.web.reactive.function.client.WebClient;
-import reactor.netty.http.client.HttpClient;
-import reactor.netty.tcp.TcpClient;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-import java.util.concurrent.TimeUnit;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * WebClient 설정 클래스입니다.
  */
 @Configuration
-public class WebClientConfig {
+public class WebClientConfig implements WebMvcConfigurer {
+    @Value("${server.allowed-origins:http://localhost:3000}") // 기본값 추가
+    private String allowedOrigins;
 
-    /**
-     * WebClient 빈을 생성합니다.
-     *
-     * @return 구성된 WebClient
-     */
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
+        registry.addMapping("/**")
+                .allowedOriginPatterns(allowedOrigins.split(",")) // List 대신 배열로 전달
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                .allowedHeaders("*");
+    }
+
     @Bean
     public WebClient webClient() {
-        TcpClient tcpClient = TcpClient.create()
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 5000)
-                .doOnConnected(connection -> {
-                    connection.addHandlerLast(new ReadTimeoutHandler(10, TimeUnit.SECONDS));
-                    connection.addHandlerLast(new WriteTimeoutHandler(10, TimeUnit.SECONDS));
-                });
-
-        return WebClient.builder()
-                .clientConnector(new ReactorClientHttpConnector(HttpClient.from(tcpClient)))
-                .build();
+        return WebClient.builder().build();
     }
 }
