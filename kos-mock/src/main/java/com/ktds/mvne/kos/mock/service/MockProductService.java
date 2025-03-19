@@ -153,7 +153,7 @@ public class MockProductService {
 
         com.ktds.mvne.kos.mock.service.MockDataService.CustomerInfo customer = customerDb.get(phoneNumber);
         com.ktds.mvne.kos.mock.service.MockDataService.ProductInfo newProduct = productDb.get(productCode);
-
+        System.out.println("====Mock===="+phoneNumber+productCode+changeReason);
         // 체크 로직
         if (customer == null || newProduct == null) {
             String errorMessage = customer == null ?

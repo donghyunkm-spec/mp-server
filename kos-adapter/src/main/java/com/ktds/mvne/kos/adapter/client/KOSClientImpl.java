@@ -39,7 +39,7 @@ public class KOSClientImpl implements KOSClient {
 
         log.debug("Sending request to KOS: {}{}", baseUrl, fullEndpoint);
         log.trace("Request XML: {}", requestXml);
-
+        System.out.println("==================="+requestXml);
         try {
             // XML 요청을 쿼리 파라미터에서 추출할 주요 정보로 변환
             String phoneNumber = extractPhoneNumber(requestXml);

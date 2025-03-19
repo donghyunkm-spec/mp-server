@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -30,17 +31,17 @@ public class ProductServiceImpl implements ProductService {
     private final KTAdapter ktAdapter;
     private final CustomerService customerService;
     private final ProductChangeResultRepository resultRepository;
-    private final RestTemplate restTemplate;
+    private final WebClient webClient;
 
     @Value("${kos.adapter.base-url}")
     private String kosAdapterBaseUrl;
 
     public ProductServiceImpl(KTAdapter ktAdapter, CustomerService customerService,
-                              ProductChangeResultRepository resultRepository, RestTemplate restTemplate) {
+                              ProductChangeResultRepository resultRepository, WebClient webClient) {
         this.ktAdapter = ktAdapter;
         this.customerService = customerService;
         this.resultRepository = resultRepository;
-        this.restTemplate = restTemplate;
+        this.webClient = webClient;
     }
 
     /**

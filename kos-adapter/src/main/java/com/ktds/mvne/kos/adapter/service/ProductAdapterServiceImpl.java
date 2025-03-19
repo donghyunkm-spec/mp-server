@@ -111,6 +111,7 @@ public class ProductAdapterServiceImpl implements ProductAdapterService {
         validateProductCode(productCode);
 
         try {
+
             // ProductChangeRequest 객체에 파라미터 명확히 포함
             String requestXml = xmlConverter.convertToSoapXml(
                     new ProductChangeRequest(phoneNumber, productCode, changeReason));

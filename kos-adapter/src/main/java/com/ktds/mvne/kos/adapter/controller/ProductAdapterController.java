@@ -93,6 +93,8 @@ public class ProductAdapterController {
             @RequestParam("productCode") String productCode,
             @Parameter(description = "변경 사유", example = "데이터 사용량 증가")
             @RequestParam("changeReason") String changeReason) {
+
+        System.out.println("======================="+phoneNumber+productCode+changeReason);
         log.debug("changeProduct request for phoneNumber: {}, productCode: {}, changeReason: {}",
                 phoneNumber, productCode, changeReason);
         ProductChangeResponse response = productAdapterService.changeProduct(phoneNumber, productCode, changeReason);
