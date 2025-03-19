@@ -125,8 +125,8 @@ testcontainers.reuse.enable=true'''
                         sh """
                             cd ${manifestDir}
                             # yq 대신 sed 사용하여 이미지 태그 업데이트
-                            sed -i 's|image: ${props.registry}/${props.image_org}/${service}:.*|image: ${imagePath}|g' mp-server/deployment/${service}-deployment.yaml
-                            git add mp-server/deployment/${service}-deployment.yaml
+                            sed -i 's|image: ${props.registry}/${props.image_org}/${service}:.*|image: ${imagePath}|g' mp-server-manifest/deployment/${service}-deploy.yaml
+                            git add  mp-server-manifest/deployment/${service}-deploy.yaml
                         """
                     }
 

@@ -19,8 +19,8 @@ data:
   CIRCUIT_BREAKER_PERMITTED_CALLS_HALF_OPEN: '3'
   CIRCUIT_BREAKER_SLIDING_WINDOW_SIZE: '10'
   CIRCUIT_BREAKER_WAIT_DURATION: '30000'
-  DB_HOST: postgresql-billing
-  DB_NAME: oteamdb
+  DB_HOST: ps-billing-postgresql
+  DB_NAME: billingdb
   DB_PORT: '5432'
   JPA_DDL_AUTO: update
   JPA_SHOW_SQL: 'false'
@@ -72,8 +72,8 @@ data:
   CIRCUIT_BREAKER_PERMITTED_CALLS_HALF_OPEN: '3'
   CIRCUIT_BREAKER_SLIDING_WINDOW_SIZE: '10'
   CIRCUIT_BREAKER_WAIT_DURATION: '30000'
-  DB_HOST: postgresql-product
-  DB_NAME: oteamdb
+  DB_HOST: ps-product-postgresql
+  DB_NAME: productdb
   DB_PORT: '5432'
   JPA_DDL_AUTO: update
   JPA_SHOW_SQL: 'false'
