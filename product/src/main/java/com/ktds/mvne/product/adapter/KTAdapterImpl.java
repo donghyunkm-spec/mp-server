@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Mono;
 
 /**
@@ -94,19 +95,33 @@ public class KTAdapterImpl implements KTAdapter {
         log.info("KT 어댑터 - 상품 변경 요청 - 회선번호: {}, 상품코드: {}, 변경사유: {}",
                 phoneNumber, productCode, changeReason);
 
-        ProductChangeRequest request = new ProductChangeRequest(phoneNumber, productCode, changeReason);
+        try {
+            // 전체 URL을 직접 만들어서 WebClient에 전달
+            String url = kosAdapterBaseUrl + "/api/kos/products/change" +
+                    "?phoneNumber=" + phoneNumber +
+                    "&productCode=" + productCode +
+                    "&changeReason=" + changeReason;
 
-        return webClient.post()
-                .uri(kosAdapterBaseUrl + "/api/kos/products/change")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(request)
-                .retrieve()
-                .bodyToMono(ProductChangeResponse.class)
-                .onErrorResume(e -> {
-                    log.error("KT 어댑터 - 상품 변경 실패: {}", e.getMessage(), e);
-                    return Mono.just(createDefaultChangeResponse(phoneNumber, productCode));
-                })
-                .block();
+            return webClient.post()
+                    .uri(url)
+                    .retrieve()
+                    .bodyToMono(ProductChangeResponse.class)
+                    .onErrorResume(e -> {
+                        log.error("KT 어댑터 - 상품 변경 실패: {}", e.getMessage(), e);
+                        return Mono.just(createDefaultChangeResponse(phoneNumber, productCode));
+                    })
+                    .block();
+        } catch (Exception e) {
+            log.error("KT 어댑터 - 상품 변경 실패: {}", e.getMessage(), e);
+            return createDefaultChangeResponse(phoneNumber, productCode);
+        }
+    }
+
+    private String ensureHttpProtocol(String url) {
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            return "http://" + url;
+        }
+        return url;
     }
 
     /**
