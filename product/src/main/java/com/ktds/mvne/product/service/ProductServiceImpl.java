@@ -58,7 +58,7 @@ public class ProductServiceImpl implements ProductService {
         try {
             // 1. 고객 정보 및 상태 확인
             CustomerInfoResponseDTO customerInfo = customerService.getCustomerInfo(phoneNumber);
-
+            System.out.println(customerInfo.toString());
             // 고객 정보나 현재 상품 정보가 없는 경우 처리
             if (customerInfo == null || customerInfo.getCurrentProduct() == null) {
                 log.warn("Customer info or current product is null for phoneNumber: {}", phoneNumber);
@@ -80,7 +80,7 @@ public class ProductServiceImpl implements ProductService {
             }
 
             // 3. 회선 상태 확인 (정지 상태가 아니어야 함)
-            if (!"사용중".equals(customerInfo.getStatus())) {
+            if (!"ACTIVE".equals(customerInfo.getStatus())) {
                 log.info("Line status is not active: {}", customerInfo.getStatus());
                 return ProductCheckResponse.builder()
                         .available(false)
