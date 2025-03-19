@@ -1,8 +1,8 @@
-// File: mp-server/kos-mock/src/main/java/com/ktds/mvne/kos/mock/util/MockDataGenerator.java
 package com.ktds.mvne.kos.mock.util;
 
 import com.ktds.mvne.common.exception.BizException;
 import com.ktds.mvne.common.exception.ErrorCode;
+import com.ktds.mvne.kos.mock.service.MockDataService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -10,8 +10,6 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -22,18 +20,7 @@ import java.util.UUID;
 @Slf4j
 public class MockDataGenerator {
 
-    // 상품 정보 맵
-    private static final Map<String, ProductInfo> PRODUCT_MAP = new HashMap<>();
-
-    static {
-        PRODUCT_MAP.put("5GX_BASIC", new ProductInfo("5GX_BASIC", "5G 베이직", 45000));
-        PRODUCT_MAP.put("5GX_STANDARD", new ProductInfo("5GX_STANDARD", "5G 스탠다드", 55000));
-        PRODUCT_MAP.put("5GX_PREMIUM", new ProductInfo("5GX_PREMIUM", "5G 프리미엄", 75000));
-        PRODUCT_MAP.put("5GX_ULTRA", new ProductInfo("5GX_ULTRA", "5G 울트라", 95000));
-        PRODUCT_MAP.put("LTE_BASIC", new ProductInfo("LTE_BASIC", "LTE 베이직", 35000));
-        PRODUCT_MAP.put("LTE_STANDARD", new ProductInfo("LTE_STANDARD", "LTE 스탠다드", 45000));
-        PRODUCT_MAP.put("LTE_PREMIUM", new ProductInfo("LTE_PREMIUM", "LTE 프리미엄", 65000));
-    }
+    private final MockDataService mockDataService;
 
     /**
      * 청구 상태 응답 SOAP XML을 생성합니다.
@@ -89,8 +76,11 @@ public class MockDataGenerator {
             log.warn("Failed to parse month from {}, using default value", billingMonth);
         }
 
+        // 공유 데이터 소스에서 고객 정보 조회
+        MockDataService.CustomerInfo customer = mockDataService.getCustomerDb().get(phoneNumber);
+
         // 기본 요금과 부가 서비스 요금 생성 - 월에 따라 약간의 변동 적용
-        int baseFee = 55000 + (monthValue * 100);
+        int baseFee = customer != null ? customer.getFee() : 55000 + (monthValue * 100);
         int dataFee = 10000 + (monthValue * 50);
         int serviceFee1 = 5000;
         int serviceFee2 = 3000;
@@ -159,93 +149,73 @@ public class MockDataGenerator {
             log.warn("Empty phone number provided, using default: {}", phoneNumber);
         }
 
-        // 전화번호 마지막 자리에 따라 다양한 상품 할당
-        String lastDigit = phoneNumber.substring(phoneNumber.length() - 1);
-        String productCode = "5GX_STANDARD"; // 기본값
+        // 공유 데이터 소스에서 고객 정보 조회
+        MockDataService.CustomerInfo customer = mockDataService.getCustomerDb().get(phoneNumber);
 
-        try {
-            int digit = Integer.parseInt(lastDigit);
+        if (customer == null) {
+            // 기존 fallback 로직 유지
+            String lastDigit = phoneNumber.substring(phoneNumber.length() - 1);
+            String productCode = "5GX_STANDARD"; // 기본값
 
-            switch (digit % 5) {
-                case 0:
-                    productCode = "5GX_BASIC";
-                    break;
-                case 1:
-                    productCode = "5GX_STANDARD";
-                    break;
-                case 2:
-                    productCode = "5GX_PREMIUM";
-                    break;
-                case 3:
-                    productCode = "LTE_BASIC";
-                    break;
-                case 4:
-                    productCode = "LTE_STANDARD";
-                    break;
+            try {
+                int digit = Integer.parseInt(lastDigit);
+
+                switch (digit % 5) {
+                    case 0:
+                        productCode = "5GX_BASIC";
+                        break;
+                    case 1:
+                        productCode = "5GX_STANDARD";
+                        break;
+                    case 2:
+                        productCode = "5GX_PREMIUM";
+                        break;
+                    case 3:
+                        productCode = "LTE_BASIC";
+                        break;
+                    case 4:
+                        productCode = "LTE_STANDARD";
+                        break;
+                }
+            } catch (Exception e) {
+                log.warn("Failed to parse last digit from {}, using default product", phoneNumber);
             }
-        } catch (Exception e) {
-            log.warn("Failed to parse last digit from {}, using default product", phoneNumber);
+
+            MockDataService.ProductInfo product = mockDataService.getProductDb().get(productCode);
+            if (product == null) {
+                productCode = "5GX_STANDARD";
+                product = new MockDataService.ProductInfo(productCode, productCode + " 상품", 50000, "ACTIVE");
+            }
+
+            String responseBody = "<CustomerInfoResponse>" +
+                    "<phoneNumber>" + phoneNumber + "</phoneNumber>" +
+                    "<status>사용중</status>" +
+                    "<currentProduct>" +
+                    "<productCode>" + product.getProductCode() + "</productCode>" +
+                    "<productName>" + product.getProductName() + "</productName>" +
+                    "<fee>" + product.getFee() + "</fee>" +
+                    "</currentProduct>" +
+                    "</CustomerInfoResponse>";
+
+            log.debug("Generated CustomerInfoResponse for phone: {}, product: {}",
+                    phoneNumber, product.getProductCode());
+            return wrapInSoapEnvelope(responseBody);
+        } else {
+            // 공유 데이터 소스에서 가져온 정보로 응답 생성
+            String responseBody = "<CustomerInfoResponse>" +
+                    "<phoneNumber>" + customer.getPhoneNumber() + "</phoneNumber>" +
+                    "<status>" + customer.getStatus() + "</status>" +
+                    "<currentProduct>" +
+                    "<productCode>" + customer.getProductCode() + "</productCode>" +
+                    "<productName>" + customer.getProductName() + "</productName>" +
+                    "<fee>" + customer.getFee() + "</fee>" +
+                    "</currentProduct>" +
+                    "</CustomerInfoResponse>";
+
+            log.debug("Generated CustomerInfoResponse for phone: {}, product: {}",
+                    phoneNumber, customer.getProductCode());
+            return wrapInSoapEnvelope(responseBody);
         }
-
-        ProductInfo product = getProductInfo(productCode);
-
-        String responseBody = "<CustomerInfoResponse>" +
-                "<phoneNumber>" + phoneNumber + "</phoneNumber>" +
-                "<status>사용중</status>" +
-                "<currentProduct>" +
-                "<productCode>" + product.code() + "</productCode>" +
-                "<productName>" + product.name() + "</productName>" +
-                "<fee>" + product.fee() + "</fee>" +
-                "</currentProduct>" +
-                "</CustomerInfoResponse>";
-
-        log.debug("Generated CustomerInfoResponse for phone: {}, product: {}",
-                phoneNumber, product.code());
-        return wrapInSoapEnvelope(responseBody);
-    }
-
-    /**
-     * 상품 정보 응답 SOAP XML을 생성합니다.
-     *
-     * @param productCode 상품 코드
-     * @return SOAP XML 응답
-     */
-    public String generateProductInfoResponse(String productCode) {
-        return generateProductInfoResponse(productCode, null);
-    }
-
-    /**
-     * 상품 정보 응답 SOAP XML을 생성합니다.
-     * 응답에 사용할 상품 코드를 별도로 지정할 수 있습니다.
-     *
-     * @param productCode 상품 코드
-     * @param outputProductCode 응답에 사용할 상품 코드 (null인 경우 productCode 사용)
-     * @return SOAP XML 응답
-     */
-    public String generateProductInfoResponse(String productCode, String outputProductCode) {
-        // 입력 파라미터 검증
-        if (productCode == null || productCode.trim().isEmpty()) {
-            productCode = "5GX_STANDARD"; // 기본값 설정
-            log.warn("Empty product code provided, using default: {}", productCode);
-        }
-
-        // 출력용 상품 코드가 null인 경우 입력 상품 코드 사용
-        if (outputProductCode == null || outputProductCode.trim().isEmpty()) {
-            outputProductCode = productCode;
-        }
-
-        ProductInfo product = getProductInfo(productCode);
-
-        // 중요 수정: 응답에서 상품 코드를 요청한 상품 코드 그대로 반환
-        String responseBody = "<ProductDetail>" +
-                "<productCode>" + outputProductCode + "</productCode>" +
-                "<productName>" + product.name() + "</productName>" +
-                "<fee>" + product.fee() + "</fee>" +
-                "</ProductDetail>";
-
-        log.debug("Generated ProductInfoResponse for product: {}, fee: {}, using outputProductCode: {}",
-                product.code(), product.fee(), outputProductCode);
-        return wrapInSoapEnvelope(responseBody);
     }
 
     /**
@@ -268,16 +238,32 @@ public class MockDataGenerator {
             log.warn("Empty product code provided, using default: {}", productCode);
         }
 
-        // 현재 상품은 5GX_STANDARD로 가정
-        ProductInfo oldProduct = getProductInfo("5GX_STANDARD");
+        // 공유 데이터 소스에서 고객 정보 및 상품 정보 조회
+        MockDataService.CustomerInfo customer = mockDataService.getCustomerDb().get(phoneNumber);
+
+        // 현재 상품은 고객 정보에서 가져오거나 기본값 사용
+        MockDataService.ProductInfo oldProduct = null;
+        String oldProductCode = "5GX_STANDARD";
+        String oldProductName = "5G 스탠다드";
+        int oldProductFee = 55000;
+
+        if (customer != null) {
+            oldProductCode = customer.getProductCode();
+            oldProductName = customer.getProductName();
+            oldProductFee = customer.getFee();
+            oldProduct = mockDataService.getProductDb().get(oldProductCode);
+        }
 
         // 변경하려는 상품
-        ProductInfo newProduct = getProductInfo(productCode);
+        MockDataService.ProductInfo newProduct = mockDataService.getProductDb().get(productCode);
+        if (newProduct == null) {
+            newProduct = new MockDataService.ProductInfo(productCode, productCode + " 상품", 75000, "ACTIVE");
+        }
 
         // 추가 요금 계산 (신규 상품 요금이 더 비싼 경우 차액의 50%를 부과)
         int additionalFee = 0;
-        if (newProduct.fee() > oldProduct.fee()) {
-            additionalFee = (newProduct.fee() - oldProduct.fee()) / 2;
+        if (newProduct.getFee() > oldProductFee) {
+            additionalFee = (newProduct.getFee() - oldProductFee) / 2;
         }
 
         // 트랜잭션 ID 생성
@@ -292,20 +278,20 @@ public class MockDataGenerator {
                 "<transactionId>" + transactionId + "</transactionId>" +
                 "<changeDate>" + changeDate + "</changeDate>" +
                 "<previousProduct>" +
-                "<productCode>" + oldProduct.code() + "</productCode>" +
-                "<productName>" + oldProduct.name() + "</productName>" +
-                "<fee>" + oldProduct.fee() + "</fee>" +
+                "<productCode>" + oldProductCode + "</productCode>" +
+                "<productName>" + oldProductName + "</productName>" +
+                "<fee>" + oldProductFee + "</fee>" +
                 "</previousProduct>" +
                 "<newProduct>" +
                 "<productCode>" + productCode + "</productCode>" +
-                "<productName>" + newProduct.name() + "</productName>" +
-                "<fee>" + newProduct.fee() + "</fee>" +
+                "<productName>" + newProduct.getProductName() + "</productName>" +
+                "<fee>" + newProduct.getFee() + "</fee>" +
                 "</newProduct>" +
                 "<additionalFee>" + additionalFee + "</additionalFee>" +
                 "</ProductChangeResponse>";
 
         log.debug("Generated ProductChangeResponse - from: {}, to: {}, additionalFee: {}",
-                oldProduct.code(), productCode, additionalFee);
+                oldProductCode, productCode, additionalFee);
         return wrapInSoapEnvelope(responseBody);
     }
 
@@ -321,27 +307,5 @@ public class MockDataGenerator {
                 "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" " +
                 "xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\">" +
                 "<soap:Body>" + content + "</soap:Body></soap:Envelope>";
-    }
-
-    /**
-     * 상품 정보를 가져옵니다.
-     *
-     * @param productCode 상품 코드
-     * @return 상품 정보
-     */
-    private ProductInfo getProductInfo(String productCode) {
-        ProductInfo product = PRODUCT_MAP.get(productCode);
-        if (product == null) {
-            log.warn("Product not found for code: {}, using default product", productCode);
-            // 없는 상품코드인 경우 기본 상품으로 대체
-            return new ProductInfo(productCode, productCode + " 상품", 50000);
-        }
-        return product;
-    }
-
-    /**
-     * 상품 정보 레코드입니다.
-     */
-    private record ProductInfo(String code, String name, int fee) {
     }
 }
