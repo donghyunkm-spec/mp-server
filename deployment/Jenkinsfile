@@ -135,11 +135,11 @@ testcontainers.reuse.enable=true'''
                 sh """
                     kubectl apply -f deployment/${manifest}
 
-                    # echo "Waiting for deployments to be ready..."
-                    # kubectl -n ${namespace} wait --for=condition=available deployment/billing --timeout=300s
-                    # kubectl -n ${namespace} wait --for=condition=available deployment/product --timeout=300s
-                    # kubectl -n ${namespace} wait --for=condition=available deployment/kos-adapter --timeout=300s
-                    # kubectl -n ${namespace} wait --for=condition=available deployment/kos-mock --timeout=300s
+                    echo "Waiting for deployments to be ready..."
+                    kubectl -n ${namespace} wait --for=condition=available deployment/billing --timeout=300s
+                    kubectl -n ${namespace} wait --for=condition=available deployment/product --timeout=300s
+                    kubectl -n ${namespace} wait --for=condition=available deployment/kos-adapter --timeout=300s
+                    kubectl -n ${namespace} wait --for=condition=available deployment/kos-mock --timeout=300s
                 """
             }
         }
