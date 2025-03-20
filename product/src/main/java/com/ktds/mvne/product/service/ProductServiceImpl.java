@@ -10,13 +10,14 @@ import com.ktds.mvne.product.dto.ProductChangeResponse;
 import com.ktds.mvne.product.dto.ProductInfoDTO;
 import com.ktds.mvne.product.repository.ProductChangeResultRepository;
 import com.ktds.mvne.product.domain.ProductChangeResult;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -31,17 +32,72 @@ public class ProductServiceImpl implements ProductService {
     private final KTAdapter ktAdapter;
     private final CustomerService customerService;
     private final ProductChangeResultRepository resultRepository;
-    private final WebClient webClient;
+    private final Timer productChangeOperationTimer;
+    private final Timer circuitBreakerOperationTimer;
+    private final Counter productChangeRequestCounter;
+    private final Counter productChangeSuccessCounter;
+    private final Counter productChangeErrorCounter;
+    private final Counter productChangeSyncCounter;
+    private final Counter productChangeAsyncCounter;
+    private final Counter circuitBreakerStateChangeCounter;
+    private final CircuitBreakerRegistry circuitBreakerRegistry;
+    private final MeterRegistry meterRegistry;
 
-    @Value("${kos.adapter.base-url}")
-    private String kosAdapterBaseUrl;
-
-    public ProductServiceImpl(KTAdapter ktAdapter, CustomerService customerService,
-                              ProductChangeResultRepository resultRepository, WebClient webClient) {
+    public ProductServiceImpl(
+            KTAdapter ktAdapter,
+            CustomerService customerService,
+            ProductChangeResultRepository resultRepository,
+            Timer productChangeOperationTimer,
+            Timer circuitBreakerOperationTimer,
+            Counter productChangeRequestCounter,
+            Counter productChangeSuccessCounter,
+            Counter productChangeErrorCounter,
+            Counter productChangeSyncCounter,
+            Counter productChangeAsyncCounter,
+            Counter circuitBreakerStateChangeCounter,
+            CircuitBreakerRegistry circuitBreakerRegistry,
+            MeterRegistry meterRegistry) {
         this.ktAdapter = ktAdapter;
         this.customerService = customerService;
         this.resultRepository = resultRepository;
-        this.webClient = webClient;
+        this.productChangeOperationTimer = productChangeOperationTimer;
+        this.circuitBreakerOperationTimer = circuitBreakerOperationTimer;
+        this.productChangeRequestCounter = productChangeRequestCounter;
+        this.productChangeSuccessCounter = productChangeSuccessCounter;
+        this.productChangeErrorCounter = productChangeErrorCounter;
+        this.productChangeSyncCounter = productChangeSyncCounter;
+        this.productChangeAsyncCounter = productChangeAsyncCounter;
+        this.circuitBreakerStateChangeCounter = circuitBreakerStateChangeCounter;
+        this.circuitBreakerRegistry = circuitBreakerRegistry;
+        this.meterRegistry = meterRegistry;
+
+        // 서킷 브레이커 상태 이벤트 리스너 등록
+        registerCircuitBreakerEventListener();
+    }
+
+    /**
+     * 서킷 브레이커 상태 변경 이벤트 리스너를 등록합니다.
+     */
+    private void registerCircuitBreakerEventListener() {
+        io.github.resilience4j.circuitbreaker.CircuitBreaker circuitBreaker = circuitBreakerRegistry.circuitBreaker("productChange");
+
+        circuitBreaker.getEventPublisher()
+                .onStateTransition(event -> {
+                    String stateFrom = event.getStateTransition().getFromState().name();
+                    String stateTo = event.getStateTransition().getToState().name();
+
+                    log.info("Circuit breaker state changed from {} to {}", stateFrom, stateTo);
+
+                    // 카운터 갱신 - 태그가 있는 카운터 생성하여 증가
+                    meterRegistry.counter("circuit_breaker_state_change",
+                                    "from", stateFrom,
+                                    "to", stateTo,
+                                    "state", stateTo)
+                            .increment();
+
+                    // 기본 카운터도 증가
+                    circuitBreakerStateChangeCounter.increment();
+                });
     }
 
     /**
@@ -59,7 +115,7 @@ public class ProductServiceImpl implements ProductService {
         try {
             // 1. 고객 정보 및 상태 확인
             CustomerInfoResponseDTO customerInfo = customerService.getCustomerInfo(phoneNumber);
-            System.out.println(customerInfo.toString());
+
             // 고객 정보나 현재 상품 정보가 없는 경우 처리
             if (customerInfo == null || customerInfo.getCurrentProduct() == null) {
                 log.warn("Customer info or current product is null for phoneNumber: {}", phoneNumber);
@@ -145,14 +201,19 @@ public class ProductServiceImpl implements ProductService {
     public ProductChangeResponse changeProduct(String phoneNumber, String productCode, String changeReason) {
         validatePhoneNumber(phoneNumber);
         validateProductCode(productCode);
+        productChangeRequestCounter.increment();
 
         log.info("Requesting product change - phoneNumber: {}, productCode: {}, reason: {}",
                 phoneNumber, productCode, changeReason);
+
+        // 타이머 시작
+        Timer.Sample productChangeSample = Timer.start();
 
         // 1. 상품 변경 가능 여부 확인
         ProductCheckResponse checkResponse = checkProductChangeAvailability(phoneNumber, productCode);
         if (!checkResponse.isAvailable()) {
             log.warn("Product change not available: {}", checkResponse.getMessage());
+            productChangeErrorCounter.increment();
             throw new BizException(ErrorCode.BAD_REQUEST, checkResponse.getMessage());
         }
 
@@ -172,7 +233,9 @@ public class ProductServiceImpl implements ProductService {
 
         try {
             // 3. KT 어댑터를 통해 상품 변경 요청
+            Timer.Sample circuitBreakerSample = Timer.start();
             ProductChangeResponse response = ktAdapter.changeProduct(phoneNumber, productCode, changeReason);
+            circuitBreakerSample.stop(circuitBreakerOperationTimer);
 
             // 4. 변경 결과 저장
             result.setStatus(response.isSuccess() ? "COMPLETED" : "FAILED");
@@ -183,6 +246,11 @@ public class ProductServiceImpl implements ProductService {
             log.info("Product change request processed - status: {}, transactionId: {}",
                     result.getStatus(), result.getTransactionId());
 
+            // 타이머 종료 및 카운터 증가
+            productChangeSample.stop(productChangeOperationTimer);
+            productChangeSuccessCounter.increment();
+            productChangeSyncCounter.increment();
+
             return response;
         } catch (Exception e) {
             // 예외 발생 시 실패 상태로 저장
@@ -190,6 +258,10 @@ public class ProductServiceImpl implements ProductService {
             result.setStatus("FAILED");
             result.setErrorMessage(e.getMessage());
             resultRepository.save(result);
+
+            // 타이머 종료 및 카운터 증가
+            productChangeSample.stop(productChangeOperationTimer);
+            productChangeErrorCounter.increment();
 
             // Circuit breaker 에 의해 fallback이 호출되지 않은 경우 예외 재발생
             throw e;
@@ -209,6 +281,9 @@ public class ProductServiceImpl implements ProductService {
     public ProductChangeResponse changeProductFallback(String phoneNumber, String productCode,
                                                        String changeReason, Throwable t) {
         log.warn("Circuit breaker is open. Falling back for productChange: {}, {}", phoneNumber, productCode, t);
+
+        // 비동기 처리를 위한 카운터 증가
+        productChangeAsyncCounter.increment();
 
         // 1. 폴백 처리를 위한 요청 ID 생성
         String requestId = UUID.randomUUID().toString();

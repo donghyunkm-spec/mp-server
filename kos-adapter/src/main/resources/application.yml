@@ -53,3 +53,24 @@ springdoc:
   api-docs:
     path: /api-docs
 
+# Actuator 설정
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  metrics:
+    tags:
+      app: ${spring.application.name}
+      instance: ${HOSTNAME:localhost}:${server.port}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+        kos.client.operation.time: true  # KOS 클라이언트 관련 타이머의 히스토그램 활성화
+    export:
+      prometheus:
+        enabled: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true

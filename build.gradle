@@ -1,4 +1,3 @@
-// build.gradle (root)
 plugins {
     id 'org.springframework.boot' version '3.2.5' apply false
     id 'io.spring.dependency-management' version '1.1.4' apply false
@@ -43,40 +42,11 @@ subprojects {
         // Spring Boot Actuator 추가 (Micrometer 포함)
         implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
-        // Prometheus 메트릭 지원 (선택적)
+        // Prometheus 메트릭 지원 추가
         implementation 'io.micrometer:micrometer-registry-prometheus'
     }
 
     test {
         useJUnitPlatform()
-    }
-}
-
-project(':common') {
-    bootJar { enabled = false }
-    jar { enabled = true }
-}
-
-project(':billing') {
-    dependencies {
-        implementation project(':common')
-    }
-}
-
-project(':product') {
-    dependencies {
-        implementation project(':common')
-    }
-}
-
-project(':kos-adapter') {
-    dependencies {
-        implementation project(':common')
-    }
-}
-
-project(':kos-mock') {
-    dependencies {
-        implementation project(':common')
     }
 }

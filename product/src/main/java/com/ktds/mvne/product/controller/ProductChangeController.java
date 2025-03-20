@@ -4,6 +4,8 @@ import com.ktds.mvne.common.dto.ApiResponse;
 import com.ktds.mvne.product.dto.ProductChangeRequest;
 import com.ktds.mvne.product.dto.ProductChangeResponse;
 import com.ktds.mvne.product.service.ProductService;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Timer;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,10 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProductChangeController {
 
     private final ProductService productService;
+    private final Counter productChangeRequestCounter;
+    private final Counter productChangeSuccessCounter;
+    private final Counter productChangeErrorCounter;
+    private final Timer productChangeOperationTimer;
 
     /**
      * 상품을 변경합니다.
@@ -36,10 +42,24 @@ public class ProductChangeController {
     @Operation(summary = "상품 변경", description = "현재 사용 중인 상품을 다른 상품으로 변경합니다.")
     public ResponseEntity<ApiResponse<ProductChangeResponse>> changeProduct(
             @RequestBody ProductChangeRequest request) {
-        log.debug("changeProduct request for phoneNumber: {}, productCode: {}, changeReason: {}", 
+        log.debug("changeProduct request for phoneNumber: {}, productCode: {}, changeReason: {}",
                 request.getPhoneNumber(), request.getProductCode(), request.getChangeReason());
-        ProductChangeResponse response = productService.changeProduct(
-                request.getPhoneNumber(), request.getProductCode(), request.getChangeReason());
-        return ResponseEntity.ok(ApiResponse.success(response));
+        productChangeRequestCounter.increment();
+
+        try {
+            Timer.Sample sample = Timer.start();
+            ProductChangeResponse response = productService.changeProduct(
+                    request.getPhoneNumber(), request.getProductCode(), request.getChangeReason());
+            sample.stop(productChangeOperationTimer);
+
+            productChangeSuccessCounter.increment();
+            return ResponseEntity.ok(ApiResponse.success(response));
+        } catch (Exception e) {
+            log.error("Error in changeProduct for phoneNumber: {}, productCode: {}: {}",
+                    request.getPhoneNumber(), request.getProductCode(), e.getMessage(), e);
+            productChangeErrorCounter.increment();
+            return ResponseEntity.status(500).body(
+                    ApiResponse.of(500, "요금 정보 조회 중 오류가 발생했습니다: " + e.getMessage(), null));
+        }
     }
 }

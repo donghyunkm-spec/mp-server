@@ -2,6 +2,8 @@ package com.ktds.mvne.billing.service;
 
 import com.ktds.mvne.billing.adapter.KTAdapter;
 import com.ktds.mvne.billing.dto.BillingInfoResponseDTO;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,6 +22,11 @@ public class RedisCacheServiceImpl implements CacheService {
 
     private final RedisTemplate<String, BillingInfoResponseDTO> redisTemplate;
     private final KTAdapter ktAdapter;
+    private final Timer cacheOperationTimer;
+    private final Counter cacheHitCounter;
+    private final Counter cacheMissCounter;
+    private final Timer ktAdapterOperationTimer;
+    private final Counter ktSystemRequestCounter;
 
     @Value("${cache.billing-info.ttl-hours:24}")
     private long ttlHours;
@@ -37,13 +44,17 @@ public class RedisCacheServiceImpl implements CacheService {
             String cacheKey = generateCacheKey(phoneNumber, billingMonth);
             log.debug("Looking up cache with key: {}", cacheKey);
 
+            Timer.Sample cacheSample = Timer.start();
             BillingInfoResponseDTO cachedInfo = redisTemplate.opsForValue().get(cacheKey);
+            cacheSample.stop(cacheOperationTimer);
 
             if (cachedInfo != null) {
                 log.debug("Cache hit for key: {}", cacheKey);
+                cacheHitCounter.increment();
                 return cachedInfo;
             } else {
                 log.debug("Cache miss for key: {}", cacheKey);
+                cacheMissCounter.increment();
                 return null;
             }
         } catch (Exception e) {
@@ -77,7 +88,9 @@ public class RedisCacheServiceImpl implements CacheService {
 
             // Redis에 저장 시도할 때 추가 예외 처리
             try {
+                Timer.Sample cacheSample = Timer.start();
                 redisTemplate.opsForValue().set(cacheKey, billingInfo, ttlHours, TimeUnit.HOURS);
+                cacheSample.stop(cacheOperationTimer);
                 log.debug("Cached billing info for {}, {} with TTL {} hours", phoneNumber, billingMonth, ttlHours);
             } catch (Exception e) {
                 // Redis 서버 연결 실패 등 심각한 오류인 경우 메시지만 로깅하고 진행
@@ -104,11 +117,16 @@ public class RedisCacheServiceImpl implements CacheService {
 
             // 기존 캐시 데이터 삭제
             String cacheKey = generateCacheKey(phoneNumber, billingMonth);
+            Timer.Sample cacheSample = Timer.start();
             Boolean deleted = redisTemplate.delete(cacheKey);
+            cacheSample.stop(cacheOperationTimer);
             log.debug("Deleted existing cache entry: {} - result: {}", cacheKey, deleted);
 
             // KT 어댑터를 통해 최신 데이터 조회
+            ktSystemRequestCounter.increment();
+            Timer.Sample ktSample = Timer.start();
             BillingInfoResponseDTO updatedInfo = ktAdapter.getBillingInfo(phoneNumber, billingMonth);
+            ktSample.stop(ktAdapterOperationTimer);
 
             // 새로운 데이터 캐싱
             if (updatedInfo != null) {

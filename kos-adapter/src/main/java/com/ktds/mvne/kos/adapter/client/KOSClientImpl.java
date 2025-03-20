@@ -1,6 +1,8 @@
 // File: mp-server\kos-adapter\src\main\java\com\ktds\mvne\kos\adapter\client\KOSClientImpl.java
 package com.ktds.mvne.kos.adapter.client;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,6 +23,10 @@ import java.util.regex.Pattern;
 @Slf4j
 public class KOSClientImpl implements KOSClient {
     private final WebClient webClient;
+    private final Timer kosClientOperationTimer;
+    private final Counter kosRequestCounter;
+    private final Counter kosSuccessCounter;
+    private final Counter kosErrorCounter;
 
     @Value("${kos-mock.base-url}")
     private String mockBaseUrl;
@@ -39,7 +45,11 @@ public class KOSClientImpl implements KOSClient {
 
         log.debug("Sending request to KOS: {}{}", baseUrl, fullEndpoint);
         log.trace("Request XML: {}", requestXml);
-        System.out.println("==================="+requestXml);
+        kosRequestCounter.increment();
+
+        // 타이머 시작
+        Timer.Sample sample = Timer.start();
+
         try {
             // XML 요청을 쿼리 파라미터에서 추출할 주요 정보로 변환
             String phoneNumber = extractPhoneNumber(requestXml);
@@ -61,7 +71,10 @@ public class KOSClientImpl implements KOSClient {
                         .uri(uri)
                         .retrieve()
                         .bodyToMono(String.class)
-                        .doOnError(e -> log.error("Error during GET request: {}", e.getMessage(), e))
+                        .doOnError(e -> {
+                            log.error("Error during GET request: {}", e.getMessage(), e);
+                            kosErrorCounter.increment();
+                        })
                         .block();
             } else if (endpoint.equals("info")) {
                 UriComponentsBuilder uriBuilder = UriComponentsBuilder.fromHttpUrl(ensureHttpUrl(baseUrl) + contextPath + "info")
@@ -78,7 +91,10 @@ public class KOSClientImpl implements KOSClient {
                         .uri(uri)
                         .retrieve()
                         .bodyToMono(String.class)
-                        .doOnError(e -> log.error("Error during GET request: {}", e.getMessage(), e))
+                        .doOnError(e -> {
+                            log.error("Error during GET request: {}", e.getMessage(), e);
+                            kosErrorCounter.increment();
+                        })
                         .block();
             } else if (endpoint.equals("customer-info")) {
                 URI uri = UriComponentsBuilder.fromHttpUrl(ensureHttpUrl(baseUrl) + contextPath + "customer-info")
@@ -91,7 +107,10 @@ public class KOSClientImpl implements KOSClient {
                         .uri(uri)
                         .retrieve()
                         .bodyToMono(String.class)
-                        .doOnError(e -> log.error("Error during GET request: {}", e.getMessage(), e))
+                        .doOnError(e -> {
+                            log.error("Error during GET request: {}", e.getMessage(), e);
+                            kosErrorCounter.increment();
+                        })
                         .block();
             } else if (endpoint.equals("product-info")) {
                 URI uri = UriComponentsBuilder.fromHttpUrl(ensureHttpUrl(baseUrl) + contextPath + "product-info")
@@ -104,7 +123,10 @@ public class KOSClientImpl implements KOSClient {
                         .uri(uri)
                         .retrieve()
                         .bodyToMono(String.class)
-                        .doOnError(e -> log.error("Error during GET request: {}", e.getMessage(), e))
+                        .doOnError(e -> {
+                            log.error("Error during GET request: {}", e.getMessage(), e);
+                            kosErrorCounter.increment();
+                        })
                         .block();
             } else if (endpoint.equals("change")) {
                 // 상품 변경 요청의 경우 쿼리 파라미터 대신 Body만 사용
@@ -119,7 +141,10 @@ public class KOSClientImpl implements KOSClient {
                         .bodyValue(requestXml)
                         .retrieve()
                         .bodyToMono(String.class)
-                        .doOnError(e -> log.error("Error during POST request: {}", e.getMessage(), e))
+                        .doOnError(e -> {
+                            log.error("Error during POST request: {}", e.getMessage(), e);
+                            kosErrorCounter.increment();
+                        })
                         .block();
             } else {
                 // 다른 엔드포인트는 POST로 처리
@@ -134,15 +159,28 @@ public class KOSClientImpl implements KOSClient {
                         .bodyValue(requestXml)
                         .retrieve()
                         .bodyToMono(String.class)
-                        .doOnError(e -> log.error("Error during POST request: {}", e.getMessage(), e))
+                        .doOnError(e -> {
+                            log.error("Error during POST request: {}", e.getMessage(), e);
+                            kosErrorCounter.increment();
+                        })
                         .block();
             }
 
             log.debug("Received response from KOS: length={}", response != null ? response.length() : 0);
             log.trace("Response: {}", response);
+
+            // 타이머 종료 및 성공 카운터 증가
+            sample.stop(kosClientOperationTimer);
+            kosSuccessCounter.increment();
+
             return response;
         } catch (Exception e) {
             log.error("Error sending request to KOS: {}", e.getMessage(), e);
+
+            // 타이머 종료 및 에러 카운터 증가
+            sample.stop(kosClientOperationTimer);
+            kosErrorCounter.increment();
+
             throw new RuntimeException("KT 영업시스템 요청 실패: " + e.getMessage(), e);
         }
     }

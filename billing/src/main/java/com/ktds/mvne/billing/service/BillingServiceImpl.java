@@ -6,6 +6,8 @@ import com.ktds.mvne.billing.dto.BillingStatusResponse;
 import com.ktds.mvne.common.exception.BizException;
 import com.ktds.mvne.common.exception.ErrorCode;
 import com.ktds.mvne.common.util.ValidationUtil;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,6 +25,11 @@ public class BillingServiceImpl implements BillingService {
 
     private final KTAdapter ktAdapter;
     private final CacheService cacheService;
+    private final Counter billingRequestCounter;
+    private final Counter billingSuccessCounter;
+    private final Counter billingErrorCounter;
+    private final Counter ktSystemRequestCounter;
+    private final Timer ktAdapterOperationTimer;
 
     /**
      * 현재 또는 전월 요금을 조회합니다.
@@ -33,28 +40,39 @@ public class BillingServiceImpl implements BillingService {
     @Override
     public BillingInfoResponseDTO getCurrentBilling(String phoneNumber) {
         validatePhoneNumber(phoneNumber);
+        billingRequestCounter.increment();
 
         try {
             // 당월 청구 데이터 존재 여부 확인
+            ktSystemRequestCounter.increment();
+            Timer.Sample ktSample = Timer.start();
             BillingStatusResponse statusResponse = ktAdapter.checkBillingStatus(phoneNumber);
+            ktSample.stop(ktAdapterOperationTimer);
+
             log.debug("BillingStatus for {}: {}", phoneNumber, statusResponse);
 
             // statusResponse가 null이면 기본 응답 생성
             if (statusResponse == null) {
                 log.warn("BillingStatusResponse is null for phoneNumber: {}", phoneNumber);
+                billingErrorCounter.increment();
                 return createDefaultBillingInfo(phoneNumber, getCurrentMonth());
             }
 
             if (statusResponse.isBillingGenerated()) {
                 // 당월 청구 데이터가 생성된 경우
-                return getBillingInfo(phoneNumber, statusResponse.getCurrentBillingMonth());
+                BillingInfoResponseDTO response = getBillingInfo(phoneNumber, statusResponse.getCurrentBillingMonth());
+                billingSuccessCounter.increment();
+                return response;
             } else {
                 // 당월 청구 데이터가 생성되지 않은 경우 전월 데이터 조회
                 String previousMonth = calculatePreviousMonth(statusResponse.getCurrentBillingMonth());
-                return getBillingInfo(phoneNumber, previousMonth);
+                BillingInfoResponseDTO response = getBillingInfo(phoneNumber, previousMonth);
+                billingSuccessCounter.increment();
+                return response;
             }
         } catch (Exception e) {
             log.error("Error retrieving current billing for {}: {}", phoneNumber, e.getMessage(), e);
+            billingErrorCounter.increment();
             // 예외가 발생하더라도 기본 응답 제공
             return createDefaultBillingInfo(phoneNumber, getCurrentMonth());
         }
@@ -71,11 +89,15 @@ public class BillingServiceImpl implements BillingService {
     public BillingInfoResponseDTO getSpecificBilling(String phoneNumber, String billingMonth) {
         validatePhoneNumber(phoneNumber);
         validateBillingMonth(billingMonth);
+        billingRequestCounter.increment();
 
         try {
-            return getBillingInfo(phoneNumber, billingMonth);
+            BillingInfoResponseDTO response = getBillingInfo(phoneNumber, billingMonth);
+            billingSuccessCounter.increment();
+            return response;
         } catch (Exception e) {
             log.error("Error retrieving specific billing for {}, {}: {}", phoneNumber, billingMonth, e.getMessage(), e);
+            billingErrorCounter.increment();
             // 예외가 발생하더라도 기본 응답 제공
             return createDefaultBillingInfo(phoneNumber, billingMonth);
         }
