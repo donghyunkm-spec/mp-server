@@ -2,7 +2,7 @@ server:
   port: ${SERVER_PORT:8083}
   servlet:
     context-path: /
-    allowed-origins: ${ALLOWED_ORIGINS:http://localhost:3000}
+  allowed-origins: ${ALLOWED_ORIGINS:http://localhost:3000}
 
 spring:
   application:
