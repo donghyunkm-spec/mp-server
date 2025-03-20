@@ -82,19 +82,28 @@ management:
     web:
       exposure:
         include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: always
+      probe:
+        enabled: true
+  health:
+    livenessState:
+      enabled: true
+    readinessState:
+      enabled: true
   metrics:
     tags:
       app: ${spring.application.name}
       instance: ${HOSTNAME:localhost}:${server.port}
+    enable:
+      all: true
     distribution:
       percentiles-histogram:
         http.server.requests: true
         circuit.breaker.operation.time: true  # Circuit Breaker 관련 타이머의 히스토그램 활성화
         product.change.operation.time: true  # 상품 변경 관련 타이머의 히스토그램 활성화
-    export:
-      prometheus:
-        enabled: true
-  prometheus:
-    metrics:
-      export:
-        enabled: true
+      sla:
+        http.server.requests: 100ms, 500ms, 1000ms
+        circuit.breaker.operation.time: 50ms, 200ms, 500ms
+        product.change.operation.time: 200ms, 500ms, 1000ms
